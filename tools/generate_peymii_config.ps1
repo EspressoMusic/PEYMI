@@ -20,10 +20,13 @@ function Get-EnvValue([string]$name) {
 $supabaseUrl = Get-EnvValue "SUPABASE_URL"
 $anonKey = Get-EnvValue "SUPABASE_ANON_KEY"
 $publicBase = Get-EnvValue "PUBLIC_STORE_BASE_URL"
-if (-not $publicBase) { $publicBase = "https://bizmi.app" }
+if (-not $publicBase) { $publicBase = "https://espressomusic.github.io/PEYMI" }
 
 $basePath = Get-EnvValue "PEYMI_PAGES_BASE_PATH"
-if (-not $basePath) { $basePath = "" }
+if (-not $basePath) {
+    if ($publicBase -match 'github\.io/([^/]+)') { $basePath = "/$($Matches[1])" }
+    else { $basePath = "" }
+}
 
 $testingMode = Get-EnvValue "LANDING_TESTING_MODE"
 if ($null -eq $testingMode -or $testingMode -eq "") { $testingMode = "true" }

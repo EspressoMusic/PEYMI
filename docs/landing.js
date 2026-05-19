@@ -1,8 +1,21 @@
 (function () {
   const cfg = window.PEYMI_CONFIG || window.BIZMI_CONFIG || {};
+
+  function detectGitHubPages() {
+    if (!location.hostname.endsWith("github.io")) return null;
+    const parts = location.pathname.split("/").filter(Boolean);
+    if (parts.length === 0) return { basePath: "", baseUrl: location.origin.replace(/\/+$/, "") };
+    const repo = parts[0];
+    return {
+      basePath: "/" + repo,
+      baseUrl: location.origin.replace(/\/+$/, "") + "/" + repo,
+    };
+  }
+
+  const gh = detectGitHubPages();
   const appName = cfg.appName || "Bizmi";
-  const basePath = (cfg.basePath || "").replace(/\/+$/, "");
-  const baseUrl = (cfg.publicBaseUrl || "https://bizmi.app").replace(/\/+$/, "");
+  let basePath = (cfg.basePath != null ? cfg.basePath : gh?.basePath || "").replace(/\/+$/, "");
+  let baseUrl = (cfg.publicBaseUrl || gh?.baseUrl || "https://bizmi.app").replace(/\/+$/, "");
   const testingMode = cfg.testingMode !== false;
   const apkUrl = (cfg.apkDownloadUrl || cfg.testApkUrl || "").trim();
 
@@ -22,8 +35,14 @@
     "www",
     ".well-known",
     "peymii",
+    "peymi",
     "docs",
   ]);
+
+  if (basePath) {
+    const repoSeg = basePath.replace(/^\//, "").toLowerCase();
+    if (repoSeg) reserved.add(repoSeg);
+  }
 
   const copy = {
     he: {

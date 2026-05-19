@@ -15,6 +15,12 @@ abstract final class PublicStoreLinks {
 
   static String get host => baseUri.host;
 
+  /// Path prefix on hosts like GitHub Pages, e.g. `/PEYMI` for `…/PEYMI/shiki`.
+  static String get publicPathPrefix {
+    final path = baseUri.path.replaceAll(RegExp(r'/+$'), '');
+    return path.isEmpty || path == '/' ? '' : path;
+  }
+
   static bool hostMatches(String? linkHost) {
     if (linkHost == null || linkHost.isEmpty) return false;
     final h = linkHost.toLowerCase();

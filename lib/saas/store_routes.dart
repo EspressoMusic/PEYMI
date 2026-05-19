@@ -39,6 +39,13 @@ String? storeSlugFromPath(String path) {
   var p = path.trim();
   if (p.isEmpty || p == '/') return null;
   if (!p.startsWith('/')) p = '/$p';
+
+  final prefix = PublicStoreLinks.publicPathPrefix;
+  if (prefix.isNotEmpty && (p == prefix || p.startsWith('$prefix/'))) {
+    p = p.substring(prefix.length);
+    if (p.isEmpty) p = '/';
+  }
+
   if (p.contains('/', 1)) return null;
   return _validSlug(p.substring(1));
 }

@@ -1,4 +1,6 @@
-# דף נחיתה Peymii (קישור חכם ללקוחות)
+# דף נחיתה Bizmi (קישור חכם ללקוחות)
+
+**פריסה מלאה ל-GitHub Pages:** ראו [GITHUB_PAGES_DEPLOY.md](./GITHUB_PAGES_DEPLOY.md)
 
 קישור לדוגמה: `https://bizmi.app/shiki` או `https://espressomusic.github.io/PEYMI/shiki`
 
