@@ -42,6 +42,28 @@ class AppStrings {
   String get navDeals => _he ? 'מבצעים' : 'Deals';
   String get navOrders => _he ? 'הזמנות' : 'Orders';
   String get navCatalog => _he ? 'קטלוג' : 'Menu';
+  String get navAppointments => _he ? 'תורים' : 'Appointments';
+  String get navMyAppointments => _he ? 'התורים שלי' : 'My bookings';
+  String get navServices => _he ? 'שירותים' : 'Services';
+  String get customerNoAppointments => _he
+      ? 'אין תורים שמורים עדיין.\nקבעו תור בלשונית "תורים".'
+      : 'No appointments yet.\nBook one in the Appointments tab.';
+  String get customerServicesTitle => _he ? 'על העסק' : 'About the business';
+  String get customerServicesList => _he ? 'שירותים' : 'Services';
+  String get customerNoServices => _he
+      ? 'אין שירותים רשומים כרגע. פנו לעסק לפרטים.'
+      : 'No services listed yet. Contact the business for details.';
+  String get managerStoreModeMenuHint => _he
+      ? 'משנה את לשונית התפריט באפליקציה. אם מחוברים לחנות אונליינית — גם את הקישור הציבורי.'
+      : 'Changes the app menu tab. When signed in to your online store, the public link updates too.';
+  String managerStoreModeLocalOnly(String label) => _he
+      ? 'עודכן בתפריט: $label. לסנכרון לקישור האינטרנט: הגדרות → יצירת חנות (פעם אחת).'
+      : 'Menu updated: $label. For public link sync: Settings → Create Store (once).';
+  String get managerAppointmentsNeedLink => _he
+      ? 'כדי להציג יומן תורים, קשרו חנות אונליינית: הגדרות → יצירת חנות.\n(או ודאו שחנות הדמו shiki קיימת בשרת)'
+      : 'To show the appointment calendar, link your online store: Settings → Create Store.\n(Ensure demo store "shiki" exists on the server)';
+  String demoStoreBanner(String slug) =>
+      _he ? 'חנות דמו: $slug' : 'Demo store: $slug';
 
   String get managerLoginTitle => _he ? 'כניסת מנהל' : 'Manager login';
   String get managerPasswordHint => _he ? 'הזן סיסמת מנהל' : 'Enter manager password';
@@ -87,8 +109,24 @@ class AppStrings {
   String get managerActionUpdateSub => _he ? 'הודעה שמופיעה באפליקציה' : 'Message shown in the app';
   String get managerActionNewDeal => _he ? 'דיל / מבצע חדש' : 'New deal';
   String get managerActionNewDealSub => _he ? 'פרסום מבצע בלשונית מבצעים' : 'Publish in Deals tab';
+  String get managerActionStoreMode => _he ? 'מצב חנות' : 'Store mode';
+  String get managerActionStoreModeSub =>
+      _he ? 'מוצרים או פגישות — מה הלקוחות רואים' : 'Products or appointments — customer view';
   String get managerActionStore => _he ? 'ניהול פאנל החנות' : 'Store panel';
-  String get managerActionStoreSub => _he ? 'סטטוס, דילים ועדכונים פעילים' : 'Status, deals & live updates';
+  String get managerActionStoreSub =>
+      _he ? 'קטלוג, דילים ועדכונים פעילים' : 'Catalog, deals & live updates';
+  String get managerOnlineStoreSection => _he ? 'חנות אונליינית (קישור ללקוחות)' : 'Online store (public link)';
+  String get managerLocalCatalogSection => _he ? 'קטלוג באפליקציה' : 'In-app catalog';
+  String get managerOnlineStoreSignIn => _he
+      ? 'כדי לבחור בין חנות מוצרים לקביעת תורים, התחברו תחילה: הגדרות → יצירת חנות.'
+      : 'To switch between products and appointments, sign in first: Settings → Create Store.';
+  String get managerOnlineStoreNoBusiness => _he
+      ? 'עדיין אין חנות אונליינית. צרו חנות ב: הגדרות → יצירת חנות.'
+      : 'No online store yet. Create one under Settings → Create Store.';
+  String get managerOnlineStoreUnavailable => _he
+      ? 'חנות אונליינית לא זמינה כרגע (בדקו חיבור לשרת).'
+      : 'Online store is unavailable (check server connection).';
+  String get managerOnlineStoreConnect => _he ? 'פתיחת חנות אונליינית' : 'Open online store setup';
   String get managerActionStats => _he ? 'סטטיסטיקה' : 'Statistics';
   String get managerActionStatsSub => _he ? 'הכנסות, הזמנות ושביעות רצון' : 'Revenue, orders & satisfaction';
   String get managerStatsWeekly => _he ? 'שבועי' : 'Weekly';
@@ -186,6 +224,8 @@ class AppStrings {
   String get managerEntrySub => _he ? 'ניהול הזמנות והחנות' : 'Manage orders & store';
   String get employeeEntry => _he ? 'כניסת עובד' : 'Employee login';
   String get employeeEntrySub => _he ? 'הזמנות וסיכום להכנה' : 'Orders & prep list';
+  String get saasCreateStore => _he ? 'יצירת חנות' : 'Create Store';
+  String get saasCreateStoreSub => _he ? 'חנות אונליין עם קישור ציבורי' : 'Online store with public link';
   String get language => _he ? 'שפה' : 'Language';
   String get languageSub => _he ? 'עברית או אנגלית' : 'Hebrew or English';
   String get languageCurrentHe => _he ? 'עברית' : 'Hebrew';

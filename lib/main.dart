@@ -12,6 +12,7 @@ import 'core/bakery_navigator.dart';
 import 'core/app_locale.dart';
 import 'core/app_theme_mode.dart';
 import 'core/business_store.dart';
+import 'core/customer_appointments_store.dart';
 import 'core/catalog_store.dart';
 import 'core/community_messages_store.dart';
 import 'core/catalog_data.dart';
@@ -25,9 +26,15 @@ import 'core/stripe_config.dart';
 import 'manager_action_pages.dart';
 import 'widgets/bakery_celebration.dart';
 import 'widgets/catalog_item_image.dart';
+import 'core/supabase/supabase_bootstrap.dart';
 import 'employee_ui.dart';
 import 'manager_ui.dart';
+import 'core/store_deep_links.dart';
+import 'saas/saas_flow.dart';
+import 'saas/store_routes.dart';
 import 'widgets/bakery_bottom_bar.dart';
+import 'widgets/home_catalog_slot.dart';
+import 'widgets/home_customer_nav_slots.dart';
 import 'widgets/store_announcement_panel.dart';
 
 AppStrings get s => AppLocale.instance.s;
@@ -40,10 +47,16 @@ void main() async {
   await BusinessStore.instance.load();
   await ReviewsStore.instance.load();
   await ManagerStore.instance.load();
+  await CustomerAppointmentsStore.instance.load();
   await ManagerNotificationsStore.instance.load();
   await CatalogStore.instance.load();
   await CommunityMessagesStore.instance.load();
   await StripePaymentService.initialize();
+  await SupabaseBootstrap.init();
+  await ManagerStore.instance.ensureDemoStoreLinked(
+    preferAppointments: ManagerStore.instance.isAppointmentCustomerMode,
+  );
+  await StoreDeepLinks.init();
   runApp(const BakeryApp());
 }
 
@@ -59,6 +72,7 @@ class BakeryApp extends StatelessWidget {
       theme: AppThemeController.instance.theme(),
       builder: (context, child) => AppConfigScope(child: child ?? const SizedBox.shrink()),
       home: const BakeryHomePage(),
+      onGenerateRoute: saasRouteFactory,
     );
   }
 }
@@ -829,45 +843,50 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
 
     final List<Widget> pages = [
       _SettingsHelpPage(),
-      ListenableBuilder(
-        listenable: ManagerStore.instance,
-        builder: (context, _) => _DealsPage(
-        deals: _visibleDeals,
-        redeemedDealIds: _activeRedeemedDealIds,
-        onRedeemDeal: (deal) async {
-          final dealId = deal['id'] as String;
-          if (_redeemedDealsAt.containsKey(dealId)) return;
-          await _markDealRedeemed(dealId);
-          setState(() {
-            _dealOrders.add({
-              'id': 'DEAL-${_dealOrders.length + 1}',
-              'title': CatalogData.dealField(deal, 'title'),
-              'total': deal['priceAfterDiscount'],
-              'statusKey': 'ready',
-              'date': _formatDate(DateTime.now()),
-              'items': List<Map<String, dynamic>>.from(deal['items'] as List),
-            });
-          });
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(strings.dealAdded)),
-          );
-          setState(() => _selectedIndex = _pageOrders);
-        },
+      HomeDealsSlot(
+        productDealsPage: ListenableBuilder(
+          listenable: ManagerStore.instance,
+          builder: (context, _) => _DealsPage(
+            deals: _visibleDeals,
+            redeemedDealIds: _activeRedeemedDealIds,
+            onRedeemDeal: (deal) async {
+              final dealId = deal['id'] as String;
+              if (_redeemedDealsAt.containsKey(dealId)) return;
+              await _markDealRedeemed(dealId);
+              setState(() {
+                _dealOrders.add({
+                  'id': 'DEAL-${_dealOrders.length + 1}',
+                  'title': CatalogData.dealField(deal, 'title'),
+                  'total': deal['priceAfterDiscount'],
+                  'statusKey': 'ready',
+                  'date': _formatDate(DateTime.now()),
+                  'items': List<Map<String, dynamic>>.from(deal['items'] as List),
+                });
+              });
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(strings.dealAdded)),
+              );
+              setState(() => _selectedIndex = _pageOrders);
+            },
+          ),
+        ),
       ),
-      ),
-      const SizedBox.shrink(),
-      ListenableBuilder(
-        listenable: CatalogStore.instance,
-        builder: (context, _) => _CatalogPage(
-          products: _products,
-          drinks: _drinks,
-          quantities: _cartQuantities,
-          onSetQuantity: (id, quantity) {
-            setState(() {
-              _setCartQuantity(id, quantity);
-            });
-          },
+      const HomeOrdersSlot(),
+      HomeCatalogSlot(
+        needLinkMessage: strings.managerAppointmentsNeedLink,
+        catalogPage: ListenableBuilder(
+          listenable: CatalogStore.instance,
+          builder: (context, _) => _CatalogPage(
+            products: _products,
+            drinks: _drinks,
+            quantities: _cartQuantities,
+            onSetQuantity: (id, quantity) {
+              setState(() {
+                _setCartQuantity(id, quantity);
+              });
+            },
+          ),
         ),
       ),
     ];
@@ -898,48 +917,52 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
                 builder: (context, _) {
                   final he = AppLocale.instance.isHebrew;
                   final announcementPages = List<Widget>.from(pages);
-                  announcementPages[_pageOrders] = _OrdersPage(
-                    orders: _pastOrders,
-                    cartItems: cartItems,
-                    dealOrders: _dealOrders,
-                    showAnnouncement: _showStoreAnnouncement,
-                    announcementMessage: ManagerStore.instance.announcement(he),
-                    announcementImagePath: ManagerStore.instance.announcementImagePath,
-                    onDismissAnnouncement: _dismissStoreAnnouncement,
-                    statusLabel: _orderStatusLabel,
-                    onDecrease: (id) {
-                      final current = _cartQuantities[id] ?? 0;
-                      if (current <= 0) return;
-                      setState(() => _cartQuantities[id] = current - 1);
-                    },
-                    onIncrease: (id) {
-                      final current = _cartQuantities[id] ?? 0;
-                      if (current >= 10) return;
-                      setState(() => _setCartQuantity(id, current + 1));
-                    },
-                    onConfirmOrder: () => _confirmOrderWithPayment(context),
-                    onRemoveDeal: (dealId) {
-                      setState(() => _dealOrders.removeWhere((d) => d['id'] == dealId));
-                    },
-                    onRepeatOrder: (order) {
-                      final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-                      setState(() {
-                        for (final item in items) {
-                          final id = item['id']?.toString();
-                          final qty = int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
-                          if (id != null && qty > 0) {
-                            final current = _cartQuantities[id] ?? 0;
-                            _cartQuantities[id] = (current + qty).clamp(0, 10);
+                  final appointmentMode = ManagerStore.instance.isAppointmentCustomerMode;
+                  if (!appointmentMode) {
+                    announcementPages[_pageOrders] = _OrdersPage(
+                      orders: _pastOrders,
+                      cartItems: cartItems,
+                      dealOrders: _dealOrders,
+                      showAnnouncement: _showStoreAnnouncement,
+                      announcementMessage: ManagerStore.instance.announcement(he),
+                      announcementImagePath: ManagerStore.instance.announcementImagePath,
+                      onDismissAnnouncement: _dismissStoreAnnouncement,
+                      statusLabel: _orderStatusLabel,
+                      onDecrease: (id) {
+                        final current = _cartQuantities[id] ?? 0;
+                        if (current <= 0) return;
+                        setState(() => _cartQuantities[id] = current - 1);
+                      },
+                      onIncrease: (id) {
+                        final current = _cartQuantities[id] ?? 0;
+                        if (current >= 10) return;
+                        setState(() => _setCartQuantity(id, current + 1));
+                      },
+                      onConfirmOrder: () => _confirmOrderWithPayment(context),
+                      onRemoveDeal: (dealId) {
+                        setState(() => _dealOrders.removeWhere((d) => d['id'] == dealId));
+                      },
+                      onRepeatOrder: (order) {
+                        final items =
+                            (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+                        setState(() {
+                          for (final item in items) {
+                            final id = item['id']?.toString();
+                            final qty = int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
+                            if (id != null && qty > 0) {
+                              final current = _cartQuantities[id] ?? 0;
+                              _cartQuantities[id] = (current + qty).clamp(0, 10);
+                            }
                           }
-                        }
-                        _selectedIndex = _pageOrders;
-                      });
-                      _playCartAddSound();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(strings.repeatOrderAdded)),
-                      );
-                    },
-                  );
+                          _selectedIndex = _pageOrders;
+                        });
+                        _playCartAddSound();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(strings.repeatOrderAdded)),
+                        );
+                      },
+                    );
+                  }
                   return IndexedStack(
                     index: _selectedIndex,
                     children: announcementPages,
@@ -950,16 +973,32 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
           ],
         ),
         bottomNavigationBar: showBottomBar
-            ? BakeryBottomBar(
-                selectedIndex: _navBarIndex(_selectedIndex),
-                onSelected: _onBottomNavSelected,
-                badgeIndices: _dealAlertBadge ? {_navDealsIndex} : const {},
-                items: [
-                  (icon: Icons.settings, label: strings.navSettings),
-                  (icon: Icons.local_offer, label: strings.navDeals),
-                  (icon: Icons.receipt_long, label: strings.navOrders),
-                  (icon: Icons.storefront, label: strings.navCatalog),
-                ],
+            ? ListenableBuilder(
+                listenable: ManagerStore.instance,
+                builder: (context, _) {
+                  final appointmentTab = ManagerStore.instance.isAppointmentCustomerMode;
+                  return BakeryBottomBar(
+                    selectedIndex: _navBarIndex(_selectedIndex),
+                    onSelected: _onBottomNavSelected,
+                    badgeIndices:
+                        !appointmentTab && _dealAlertBadge ? {_navDealsIndex} : const {},
+                    items: [
+                      (icon: Icons.settings, label: strings.navSettings),
+                      (
+                        icon: appointmentTab ? Icons.design_services_outlined : Icons.local_offer,
+                        label: appointmentTab ? strings.navServices : strings.navDeals,
+                      ),
+                      (
+                        icon: appointmentTab ? Icons.event_note_outlined : Icons.receipt_long,
+                        label: appointmentTab ? strings.navMyAppointments : strings.navOrders,
+                      ),
+                      (
+                        icon: appointmentTab ? Icons.calendar_month : Icons.storefront,
+                        label: appointmentTab ? strings.navAppointments : strings.navCatalog,
+                      ),
+                    ],
+                  );
+                },
               )
             : null,
     );
@@ -4115,6 +4154,15 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                     showInfoButton: true,
                     onTap: () => showEmployeeLogin(context),
                   ),
+                  if (SupabaseBootstrap.isReady)
+                    ManagerActionSquare(
+                      title: strings.saasCreateStore,
+                      subtitle: strings.saasCreateStoreSub,
+                      icon: Icons.add_business_outlined,
+                      colorIndex: 0,
+                      showInfoButton: true,
+                      onTap: () => openSaasCreateStoreFlow(context),
+                    ),
                 ],
               ),
               const SizedBox(height: 22),

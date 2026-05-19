@@ -5,8 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'locale_translate.dart';
 
+import '../saas/data/saas_repository.dart';
 import 'catalog_data.dart';
+import 'demo_store.dart';
 import 'store_announcement.dart';
+import 'supabase/supabase_bootstrap.dart';
 
 class CustomerInquiry {
   const CustomerInquiry({
@@ -47,6 +50,18 @@ class ManagerStore extends ChangeNotifier {
 
   static final ManagerStore instance = ManagerStore._();
 
+  var _notifyDeferred = false;
+
+  /// Avoids InheritedWidget crashes when the home tree rebuilds during navigation.
+  void notifyListenersDeferred() {
+    if (_notifyDeferred) return;
+    _notifyDeferred = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notifyDeferred = false;
+      if (hasListeners) notifyListeners();
+    });
+  }
+
   static const _inquiriesKey = 'manager_inquiries';
   static const _announcementHeKey = 'manager_announcement_he';
   static const _announcementEnKey = 'manager_announcement_en';
@@ -54,10 +69,28 @@ class ManagerStore extends ChangeNotifier {
   static const _announcementPopupKey = 'manager_pending_announcement_popup_v1';
   static const _customDealsKey = 'manager_custom_deals';
   static const _dealAlertKey = 'manager_pending_deal_alert_v1';
+  static const _linkedSlugKey = 'manager_online_business_slug';
+  static const _linkedIdKey = 'manager_online_business_id';
+  static const _customerPanelModeKey = 'manager_customer_panel_mode';
 
   final List<CustomerInquiry> _inquiries = [];
   final List<Map<String, dynamic>> _customDeals = [];
   StoreAnnouncement _announcement = StoreAnnouncement.empty;
+  String? _linkedBusinessSlug;
+  String? _linkedBusinessId;
+  String _customerPanelMode = 'products';
+
+  /// What customers see in the app menu: catalog or appointment booking.
+  String get customerPanelMode => _customerPanelMode;
+
+  bool get isAppointmentCustomerMode => _customerPanelMode == 'appointments';
+
+  bool get hasLinkedBusiness =>
+      _linkedBusinessSlug != null && _linkedBusinessSlug!.trim().isNotEmpty;
+
+  String? get linkedBusinessSlug => _linkedBusinessSlug;
+
+  String? get linkedBusinessId => _linkedBusinessId;
 
   List<CustomerInquiry> get inquiries => List.unmodifiable(_inquiries);
   List<Map<String, dynamic>> get customDeals => List.unmodifiable(_customDeals);
@@ -107,7 +140,133 @@ class ManagerStore extends ChangeNotifier {
       }
     }
     await pruneExpiredCustomDeals();
+
+    _linkedBusinessSlug = prefs.getString(_linkedSlugKey);
+    _linkedBusinessId = prefs.getString(_linkedIdKey);
+    _customerPanelMode = prefs.getString(_customerPanelModeKey) ?? 'products';
+    if (_customerPanelMode != 'products' && _customerPanelMode != 'appointments') {
+      _customerPanelMode = 'products';
+    }
+
     notifyListeners();
+  }
+
+  /// Links the configured demo store from Supabase (e.g. slug `shiki`) for in-app preview.
+  Future<bool> ensureDemoStoreLinked({bool preferAppointments = false}) async {
+    if (!SupabaseBootstrap.isReady) return false;
+    try {
+      var business = await SaasRepository.instance.fetchBusinessBySlug(DemoStore.slug);
+      if (business == null) return false;
+
+      final wantAppointments = preferAppointments || isAppointmentCustomerMode;
+      if (wantAppointments && business.storeMode != 'appointments') {
+        final synced = await _trySyncStoreModeOnServer(business.id, 'appointments');
+        if (synced) {
+          business = await SaasRepository.instance.fetchBusinessBySlug(DemoStore.slug) ?? business;
+        }
+      }
+
+      final mode = wantAppointments ? 'appointments' : business.storeMode;
+      if (!hasLinkedBusiness ||
+          _linkedBusinessSlug != business.slug ||
+          _customerPanelMode != mode) {
+        await linkOnlineBusiness(
+          id: business.id,
+          slug: business.slug,
+          storeMode: mode,
+        );
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _trySyncStoreModeOnServer(String businessId, String mode) async {
+    if (!SupabaseBootstrap.isReady || SaasRepository.instance.currentUser == null) {
+      return false;
+    }
+    try {
+      await SaasRepository.instance.setBusinessStoreMode(
+        businessId: businessId,
+        storeMode: mode,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// When UI is in appointment mode, align linked business + server (if owner signed in).
+  Future<void> ensureAppointmentModeReady() async {
+    if (!isAppointmentCustomerMode) return;
+    if (!hasLinkedBusiness) {
+      await ensureDemoStoreLinked(preferAppointments: true);
+      return;
+    }
+    if (_linkedBusinessSlug == null) return;
+    try {
+      var fresh = await SaasRepository.instance.fetchBusinessBySlug(_linkedBusinessSlug!);
+      if (fresh == null) {
+        await ensureDemoStoreLinked(preferAppointments: true);
+        return;
+      }
+      if (fresh.storeMode != 'appointments') {
+        await _trySyncStoreModeOnServer(fresh.id, 'appointments');
+        fresh = await SaasRepository.instance.fetchBusinessBySlug(fresh.slug) ?? fresh;
+      }
+      if (fresh.storeMode != 'appointments' && !DemoStore.isDemoSlug(fresh.slug)) {
+        await ensureDemoStoreLinked(preferAppointments: true);
+        return;
+      }
+      if (_customerPanelMode != 'appointments' || fresh.storeMode != 'appointments') {
+        await linkOnlineBusiness(
+          id: fresh.id,
+          slug: fresh.slug,
+          storeMode: 'appointments',
+        );
+      }
+    } catch (_) {
+      await ensureDemoStoreLinked(preferAppointments: true);
+    }
+  }
+
+  Future<void> setCustomerPanelMode(String mode) async {
+    if (mode != 'products' && mode != 'appointments') return;
+    if (_customerPanelMode == mode) return;
+    _customerPanelMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_customerPanelModeKey, mode);
+    notifyListenersDeferred();
+  }
+
+  Future<void> linkOnlineBusiness({
+    required String id,
+    required String slug,
+    String? storeMode,
+  }) async {
+    final newSlug = slug.trim().toLowerCase();
+    final newMode =
+        storeMode == 'products' || storeMode == 'appointments' ? storeMode! : _customerPanelMode;
+    final changed =
+        _linkedBusinessId != id || _linkedBusinessSlug != newSlug || _customerPanelMode != newMode;
+    _linkedBusinessId = id;
+    _linkedBusinessSlug = newSlug;
+    _customerPanelMode = newMode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_linkedSlugKey, _linkedBusinessSlug!);
+    await prefs.setString(_linkedIdKey, id);
+    await prefs.setString(_customerPanelModeKey, _customerPanelMode);
+    if (changed) notifyListenersDeferred();
+  }
+
+  Future<void> applyServerStoreMode(String mode) async {
+    if (mode != 'products' && mode != 'appointments') return;
+    if (_customerPanelMode == mode) return;
+    _customerPanelMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_customerPanelModeKey, mode);
+    notifyListenersDeferred();
   }
 
   Future<void> pruneExpiredCustomDeals() async {

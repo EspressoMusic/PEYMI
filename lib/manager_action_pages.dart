@@ -19,6 +19,7 @@ import 'core/reviews_store.dart';
 import 'widgets/bakery_celebration.dart';
 import 'widgets/catalog_item_image.dart';
 import 'widgets/manager_revenue_chart.dart';
+import 'saas/widgets/saas_store_mode_section.dart';
 
 AppStrings get _s => AppLocale.instance.s;
 
@@ -1203,6 +1204,22 @@ class _ManagerAddItemFormState extends State<_ManagerAddItemForm> {
   }
 }
 
+class ManagerStoreModePage extends StatelessWidget {
+  const ManagerStoreModePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = _s;
+    return ManagerSubPage(
+      title: strings.managerActionStoreMode,
+      body: const Padding(
+        padding: EdgeInsets.fromLTRB(20, 32, 20, 28),
+        child: SaasStoreModeSection(),
+      ),
+    );
+  }
+}
+
 class ManagerStorePage extends StatefulWidget {
   const ManagerStorePage({super.key});
 
@@ -1241,7 +1258,10 @@ class _ManagerStorePageState extends State<ManagerStorePage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          Text(strings.managerActionStoreSub, style: BakeryTheme.subtitleText(context, fontSize: 14)),
+          Text(
+            strings.managerLocalCatalogSection,
+            style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
