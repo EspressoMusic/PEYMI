@@ -104,9 +104,21 @@
     const saved = sessionStorage.getItem("peymii_path");
     if (!saved) return;
     sessionStorage.removeItem("peymii_path");
-    if (location.pathname !== saved) {
-      history.replaceState(null, "", saved + location.search);
+    const savedPath = saved.split("?")[0].split("#")[0];
+    if (location.pathname !== savedPath) {
+      history.replaceState(null, "", saved);
     }
+  }
+
+  function ensureBaseHref() {
+    if (!basePath) return;
+    let el = document.querySelector("base[data-peymii-base]");
+    if (!el) {
+      el = document.createElement("base");
+      el.setAttribute("data-peymii-base", "1");
+      document.head.insertBefore(el, document.head.firstChild);
+    }
+    el.href = basePath + "/";
   }
 
   function slugFromPath() {
@@ -367,6 +379,7 @@
 
   document.documentElement.lang = lang() === "he" ? "he" : "en";
   document.documentElement.dir = lang() === "he" ? "rtl" : "ltr";
+  ensureBaseHref();
 
   const badge = document.getElementById("brand-badge");
   if (badge) badge.textContent = appName;

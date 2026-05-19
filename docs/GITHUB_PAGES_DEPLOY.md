@@ -172,7 +172,8 @@ basePath: "",
 
 ## פתרון תקלות
 
-- **404 על `/PEYMI/shiki`** — ודאו `404.html` ב-`docs/` ו-`basePath: "/PEYMI"`.  
+- **404 על `/PEYMI/`** — ודאו Pages: branch `main`, folder **`/docs`** (לא `/root`). המתינו 2–5 דקות אחרי Save.  
+- **404 על `/PEYMI/shiki`** — `docs/404.html` מפנה ל-`index.html` ושומר את הנתיב; רעננו בלי cache (Ctrl+F5).  
 - **שם חנות לא נטען** — בדקו `config.js` ו-anon key.  
-- **עיצוב שבור** — ודאו שקיים `docs/.nojekyll`.  
-- **אפליקציה לא נפתחת** — deep link `bizmi://` דורש התקנת APK; קישור GitHub פותח דפדפן (תקין).
+- **עיצוב שבור** — ודאו `docs/.nojekyll` ו-`basePath: "/PEYMI"` ב-config.  
+- **אפליקציה לא נפתחת** — deep link `bizmi://` דורש APK מותקן.

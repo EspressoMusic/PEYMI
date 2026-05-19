@@ -2,16 +2,22 @@
 <html lang="he">
 <head>
   <meta charset="utf-8" />
-  <title>Peymii</title>
+  <title>Bizmi</title>
   <script>
-    sessionStorage.setItem("peymii_path", location.pathname + location.search);
-    var parts = location.pathname.split("/").filter(Boolean);
-    if (parts.length > 1) {
-      location.replace("/" + parts[0] + "/");
-    } else {
-      location.replace("./");
-    }
+    (function () {
+      var path = location.pathname;
+      var search = location.search || "";
+      var hash = location.hash || "";
+      sessionStorage.setItem("peymii_path", path + search + hash);
+      var slash = path.lastIndexOf("/");
+      var base = slash >= 0 ? path.substring(0, slash + 1) : "/";
+      location.replace(base + "index.html" + search + hash);
+    })();
   </script>
+  <noscript>
+    <meta http-equiv="refresh" content="0;url=index.html" />
+    <p><a href="index.html">Open Bizmi</a></p>
+  </noscript>
 </head>
 <body></body>
 </html>
