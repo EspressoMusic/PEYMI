@@ -1,0 +1,24 @@
+---
+description: Check for a relevant Cursor Skill before starting any task
+alwaysApply: true
+---
+
+# Check Skills Before Starting
+
+Before starting any task:
+
+1. **Check** whether a relevant **Cursor Skill** is available (listed in the agent context or under `.cursor/skills-cursor/` / project skills).
+2. **If a relevant Skill exists** — read and follow it for that task.
+3. **If no relevant Skill exists** — continue normally.
+4. **Do not invent** Skills that do not exist.
+
+## Brief report to the user
+
+At the start of work (or when asked), state in one short line:
+- which Skill you used and why, **or**
+- that **no relevant Skill was found**.
+
+## Scope
+
+- Apply Skills only when they match the task; do not force an irrelevant Skill.
+- Do not change unrelated files while following a Skill or completing the task.
