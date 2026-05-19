@@ -1,0 +1,24 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-    final cartCount = _cartQuantities.values.fold<int>(0, (sum, q) => sum + q);
++    final hasActiveOrder = cartItems.isNotEmpty;
+@@
+-          if (cartCount == 0) return;
++          if (!hasActiveOrder) return;
+@@
+                 icon: Badge(
+-                  isLabelVisible: cartCount > 0,
+-                  label: Text('$cartCount'),
++                  isLabelVisible: hasActiveOrder,
++                  label: const Text('1'),
+                   child: _menuIcon(Icons.receipt_long),
+                 ),
+                 selectedIcon: Badge(
+-                  isLabelVisible: cartCount > 0,
+-                  label: Text('$cartCount'),
++                  isLabelVisible: hasActiveOrder,
++                  label: const Text('1'),
+                   child: _menuIcon(Icons.receipt_long, selected: true),
+                 ),
+*** End Patch

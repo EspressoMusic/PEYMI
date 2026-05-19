@@ -1,0 +1,58 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+       _DealsPage(
+         deals: _deals,
+         isDealRedeemed: (deal) => _redeemedDealTitles.contains(deal['title']),
+         onAlreadyRedeemedTap: () {
+           ScaffoldMessenger.of(context).showSnackBar(
+@@
+         onRedeemDeal: (deal) {
+           setState(() {
+             _redeemedDealTitles.add(deal['title'].toString());
+             _dealOrders.add({
+               'id': 'DEAL-${_dealOrders.length + 1}',
+@@
+             _selectedIndex = 2;
+           });
++          _playCartAddSound();
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('הדיל מומש ונוסף להזמנות בתהליך')),
+           );
+         },
+       ),
+@@
+         onRepeatOrder: (order) {
+           final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+           setState(() {
+             _cartQuantities.clear();
+@@
+               }
+             }
+           });
++          _playCartAddSound();
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('הזמנה חוזרת נוספה להזמנות בתהליך')),
+           );
+         },
+       ),
+@@
+                 OutlinedButton.icon(
+                   style: OutlinedButton.styleFrom(
+                     minimumSize: const Size(double.infinity, 62),
++                    side: BorderSide(color: Colors.brown.shade500, width: 2),
++                    foregroundColor: const Color(0xFF3E2723),
++                    backgroundColor: const Color(0xFFF8F4EC),
+                   ),
+                   onPressed: () {
+                     Navigator.pop(context);
+                     _openOnlineContactForm();
+                   },
+                   icon: const Icon(Icons.edit_note, size: 24),
+                   label: const Text(
+                     'פנייה דרך האפליקציה',
+-                    style: TextStyle(fontWeight: FontWeight.w900),
++                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                   ),
+                 ),
+*** End Patch

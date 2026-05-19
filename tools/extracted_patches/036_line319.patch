@@ -1,0 +1,179 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+       _OrdersPage(
+         orders: _pastOrders,
+         cartItems: cartItems,
+@@
+         onConfirmOrder: () {
+@@
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('ההזמנה אושרה בהצלחה!')),
+           );
+         },
++        onRepeatOrder: (order) {
++          final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
++          setState(() {
++            _cartQuantities.clear();
++            for (final item in items) {
++              final name = item['name']?.toString();
++              final qty = int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
++              if (name != null && qty > 0) {
++                _cartQuantities[name] = qty.clamp(0, 10);
++              }
++            }
++          });
++          ScaffoldMessenger.of(context).showSnackBar(
++            const SnackBar(content: Text('הזמנה חוזרת נוספה להזמנות בתהליך')),
++          );
++        },
+       ),
+@@
+ class _OrdersPage extends StatefulWidget {
+@@
+     required this.onDecrease,
+     required this.onIncrease,
+     required this.onConfirmOrder,
++    required this.onRepeatOrder,
+   });
+@@
+   final void Function(String name) onDecrease;
+   final void Function(String name) onIncrease;
+   final VoidCallback onConfirmOrder;
++  final void Function(Map<String, dynamic> order) onRepeatOrder;
+@@
+ class _OrdersPageState extends State<_OrdersPage> {
+-  final Set<String> _expandedOrderIds = {};
+-
+   @override
+   Widget build(BuildContext context) {
+@@
+               itemBuilder: (context, index) {
+                 final order = widget.orders[index];
+-              final orderId = order['id'] as String;
+-              final isExpanded = _expandedOrderIds.contains(orderId);
+-              final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
++              final orderId = order['id'] as String;
+               return InkWell(
+                 borderRadius: BorderRadius.circular(20),
+                 onTap: () {
+-                  setState(() {
+-                    if (isExpanded) {
+-                      _expandedOrderIds.remove(orderId);
+-                    } else {
+-                      _expandedOrderIds.add(orderId);
+-                    }
+-                  });
++                  _openPastOrderDialog(order);
+                 },
+                 child: AnimatedContainer(
+                   duration: const Duration(milliseconds: 220),
+@@
+                   child: Column(
++                    mainAxisAlignment: MainAxisAlignment.center,
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+-                      Text(orderId, style: const TextStyle(fontWeight: FontWeight.w900)),
+-                      const SizedBox(height: 4),
+-                      Text(
+-                        '${order['total']}',
+-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
++                      Center(
++                        child: Text(orderId, style: const TextStyle(fontWeight: FontWeight.w900)),
+                       ),
+-                      const SizedBox(height: 6),
+-                      Text(
+-                        isExpanded ? 'הקש לסגירה' : 'הקש להרחבה',
+-                        style: TextStyle(fontSize: 12, color: Colors.brown.shade400),
++                      const SizedBox(height: 6),
++                      Center(
++                        child: Text(
++                          '${order['total']}',
++                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
++                        ),
+                       ),
+-                      if (isExpanded) ...[
+-                        const SizedBox(height: 6),
+-                        Text('סטטוס: ${order['status']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+-                        Text('תאריך: ${order['date']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+-                        const SizedBox(height: 4),
+-                        const Text('מוצרים:', style: TextStyle(fontWeight: FontWeight.w800)),
+-                        Expanded(
+-                          child: ListView(
+-                            padding: EdgeInsets.zero,
+-                            children: items
+-                                .map(
+-                                  (it) => Text(
+-                                    '• ${it['name']} x${it['quantity']}',
+-                                    maxLines: 1,
+-                                    overflow: TextOverflow.ellipsis,
+-                                  ),
+-                                )
+-                                .toList(),
+-                          ),
+-                        ),
+-                      ],
++                      const SizedBox(height: 6),
++                      Center(
++                        child: Text(
++                          'לחץ לפרטי ההזמנה',
++                          style: TextStyle(fontSize: 12, color: Colors.brown.shade400),
++                        ),
++                      ),
+                     ],
+                   ),
+                 ),
+               );
+             },
+           ),
+       ],
+     );
+   }
++
++  Future<void> _openPastOrderDialog(Map<String, dynamic> order) async {
++    final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
++    await showDialog<void>(
++      context: context,
++      builder: (context) {
++        return AlertDialog(
++          title: Text('הזמנה ${order['id']}'),
++          content: SizedBox(
++            width: 320,
++            child: SingleChildScrollView(
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                mainAxisSize: MainAxisSize.min,
++                children: [
++                  Text('מספר הזמנה: ${order['id']}'),
++                  Text('תאריך: ${order['date']}'),
++                  Text('סטטוס: ${order['status']}'),
++                  Text('מחיר כולל: ${order['total']}'),
++                  const SizedBox(height: 10),
++                  const Text('מה הוזמן:', style: TextStyle(fontWeight: FontWeight.w900)),
++                  const SizedBox(height: 4),
++                  ...items.map(
++                    (item) => Text('• ${item['name']} x${item['quantity']} (${item['price']})'),
++                  ),
++                ],
++              ),
++            ),
++          ),
++          actions: [
++            TextButton(
++              onPressed: () => Navigator.pop(context),
++              child: const Text('סגירה'),
++            ),
++            FilledButton(
++              onPressed: () {
++                widget.onRepeatOrder(order);
++                Navigator.pop(context);
++              },
++              child: const Text('הזמנה חוזרת'),
++            ),
++          ],
++        );
++      },
++    );
++  }
+ }
+*** End Patch

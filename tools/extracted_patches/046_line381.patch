@@ -1,0 +1,18 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\\main.dart
+@@
+-                          InkWell(
++                          InkWell(
+                             onTap: widget.onDecrease,
+                             borderRadius: BorderRadius.circular(12),
+                             child: const SizedBox(
+                               width: 22,
+                               height: 22,
+                               child: Icon(Icons.remove, size: 14),
+                             ),
+-                          );
++                          ),
+@@
+-                          ),
++                          );
+*** End Patch

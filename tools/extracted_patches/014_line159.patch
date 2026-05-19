@@ -1,0 +1,50 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+       builder: (context, child) {
+         final mediaQuery = MediaQuery.of(context);
+         return MediaQuery(
+           data: mediaQuery.copyWith(
+             textScaler: TextScaler.linear(
+-              mediaQuery.textScaler.scale(1) * 1.12,
++              mediaQuery.textScaler.scale(1) * 1.22,
+             ),
+           ),
+           child: child!,
+         );
+       },
+       theme: ThemeData(
+         useMaterial3: true,
+         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+-        textTheme: GoogleFonts.varelaRoundTextTheme(),
++        textTheme: GoogleFonts.varelaRoundTextTheme().copyWith(
++          titleLarge: const TextStyle(fontWeight: FontWeight.w900),
++          titleMedium: const TextStyle(fontWeight: FontWeight.w800),
++          bodyLarge: const TextStyle(fontWeight: FontWeight.w700),
++          bodyMedium: const TextStyle(fontWeight: FontWeight.w700),
++          bodySmall: const TextStyle(fontWeight: FontWeight.w700),
++          labelLarge: const TextStyle(fontWeight: FontWeight.w900),
++          labelMedium: const TextStyle(fontWeight: FontWeight.w800),
++        ),
++        listTileTheme: const ListTileThemeData(
++          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.black87),
++          subtitleTextStyle: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black54),
++        ),
++        navigationBarTheme: const NavigationBarThemeData(
++          labelTextStyle: WidgetStatePropertyAll(
++            TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
++          ),
++        ),
++        filledButtonTheme: const FilledButtonThemeData(
++          style: ButtonStyle(
++            textStyle: WidgetStatePropertyAll(
++              TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
++            ),
++          ),
++        ),
+         cardTheme: CardThemeData(
+           elevation: 8,
+           shadowColor: Colors.black26,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+         ),
+*** End Patch

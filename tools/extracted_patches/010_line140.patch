@@ -1,0 +1,55 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+       children: const [
+         Text(
+           'הגדרות ועזרה',
+           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+         ),
+         SizedBox(height: 10),
+         Card(
+           elevation: 8,
+           child: ListTile(
+-            leading: Icon(Icons.notifications_active),
+-            title: Text('התראות'),
+-            subtitle: Text('קבלת עדכוני מבצעים ומשלוחים'),
++            leading: Icon(Icons.phone),
++            title: Text('צור קשר'),
++            subtitle: Text('דברו איתנו בטלפון או במייל'),
+           ),
+         ),
+         Card(
+           elevation: 8,
+           child: ListTile(
+-            leading: Icon(Icons.location_on),
+-            title: Text('כתובת משלוח'),
+-            subtitle: Text('רחוב הדוגמה 12, תל אביב'),
++            leading: Icon(Icons.campaign),
++            title: Text('המליצו עלינו'),
++            subtitle: Text('שתפו חברים וקבלו הטבה'),
+           ),
+         ),
+         Card(
+           elevation: 8,
+           child: ListTile(
+-            leading: Icon(Icons.help_outline),
+-            title: Text('מרכז עזרה'),
+-            subtitle: Text('שאלות נפוצות, יצירת קשר ותמיכה'),
++            leading: Icon(Icons.accessible),
++            title: Text('נגישות'),
++            subtitle: Text('התאמות נגישות ושירות מותאם'),
+           ),
+         ),
+         Card(
+           elevation: 8,
+           child: ListTile(
+-            leading: Icon(Icons.phone),
+-            title: Text('יצירת קשר'),
+-            subtitle: Text('050-1234567 | bakery@example.com'),
++            leading: Icon(Icons.quiz),
++            title: Text('שאלות נפוצות'),
++            subtitle: Text('תשובות מהירות לשאלות נפוצות'),
+           ),
+         ),
+       ],
+*** End Patch

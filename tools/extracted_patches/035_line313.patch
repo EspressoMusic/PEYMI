@@ -1,0 +1,13 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                     child: ListView.separated(
+                       shrinkWrap: true,
+                       itemCount: _reviews.length,
+-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
++                      separatorBuilder: (_, index) => const SizedBox(height: 8),
+@@
+                     DropdownButtonFormField<int>(
+-                      value: selectedStars,
++                      initialValue: selectedStars,
+*** End Patch

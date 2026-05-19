@@ -1,0 +1,125 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   Widget build(BuildContext context) {
+-    return ListView(
+-      padding: const EdgeInsets.all(12),
+-      children: [
+-        const Text(
+-          'העגלה שלך',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        const SizedBox(height: 8),
+-        if (cartItems.isEmpty)
+-          const Card(
+-            child: ListTile(
+-              leading: Icon(Icons.shopping_cart_outlined),
+-              title: Text('העגלה ריקה'),
+-              subtitle: Text('הוסף מוצרים מהקטלוג כדי לבצע הזמנה'),
+-            ),
+-          ),
+-        ...cartItems.map(
+-          (item) => Card(
+-            margin: const EdgeInsets.symmetric(vertical: 6),
+-            child: ListTile(
+-              leading: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 24)),
+-              title: Text(item['name']!),
+-              subtitle: Text('${item['price']}'),
+-              trailing: SizedBox(
+-                width: 106,
+-                child: Row(
+-                  children: [
+-                    InkWell(
+-                      onTap: () => onDecrease(item['name']!),
+-                      borderRadius: BorderRadius.circular(12),
+-                      child: const SizedBox(
+-                        width: 24,
+-                        height: 24,
+-                        child: Icon(Icons.remove, size: 14),
+-                      ),
+-                    ),
+-                    Expanded(
+-                      child: Center(
+-                        child: Text(
+-                          item['quantity']!,
+-                          style: const TextStyle(fontWeight: FontWeight.w900),
+-                        ),
+-                      ),
+-                    ),
+-                    InkWell(
+-                      onTap: () => onIncrease(item['name']!),
+-                      borderRadius: BorderRadius.circular(12),
+-                      child: const SizedBox(
+-                        width: 24,
+-                        height: 24,
+-                        child: Icon(Icons.add, size: 14),
+-                      ),
+-                    ),
+-                  ],
+-                ),
+-              ),
+-            ),
+-          ),
+-        ),
+-        if (cartItems.isNotEmpty) ...[
+-          const SizedBox(height: 8),
+-          SizedBox(
+-            width: double.infinity,
+-            child: FilledButton.icon(
+-              onPressed: onConfirmOrder,
+-              icon: const Icon(Icons.check_circle),
+-              label: const Text('אישור לביצוע ההזמנה'),
+-            ),
+-          ),
+-          const SizedBox(height: 16),
+-        ],
+-        const Text(
+-          'פאנל הזמנות',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        const SizedBox(height: 8),
+-        const Text('היסטוריית הזמנות ומעקב משלוחים בזמן אמת'),
+-        const SizedBox(height: 14),
+-        ...orders.map(
+-          (order) => Card(
+-            margin: const EdgeInsets.symmetric(vertical: 6),
+-            child: Padding(
+-              padding: const EdgeInsets.all(12),
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Row(
+-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-                    children: [
+-                      Text(order['id'], style: const TextStyle(fontWeight: FontWeight.bold)),
+-                      Text(order['total']),
+-                    ],
+-                  ),
+-                  const SizedBox(height: 4),
+-                  Text('תאריך: ${order['date']}'),
+-                  const SizedBox(height: 4),
+-                  Text('סטטוס משלוח: ${order['status']}'),
+-                  const SizedBox(height: 10),
+-                  ClipRRect(
+-                    borderRadius: BorderRadius.circular(12),
+-                    child: LinearProgressIndicator(
+-                      minHeight: 10,
+-                      value: order['progress'],
+-                      backgroundColor: Colors.orange.shade100,
+-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.deepOrange.shade400),
+-                    ),
+-                  ),
+-                ],
+-              ),
+-            ),
+-          ),
+-        ),
+-      ],
++    return const SizedBox.expand(
++      child: ColoredBox(
++        color: Colors.transparent,
++      ),
+     );
+   }
+ }
+*** End Patch

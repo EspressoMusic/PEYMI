@@ -1,0 +1,62 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                   const SizedBox(width: 6),
+-                  Flexible(
+-                    child: Container(
++                  SizedBox(
++                    width: 92,
++                    child: Container(
+                       decoration: BoxDecoration(
+                         color: Colors.white.withValues(alpha: 0.7),
+                         borderRadius: BorderRadius.circular(20),
+                         border: Border.all(color: Colors.orange.shade200),
+                       ),
+                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                       child: Row(
+                         children: [
+-                          IconButton(
+-                            onPressed: widget.onDecrease,
+-                            icon: const Icon(Icons.remove, size: 16),
+-                            visualDensity: VisualDensity.compact,
+-                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
++                          InkWell(
++                            onTap: widget.onDecrease,
++                            borderRadius: BorderRadius.circular(12),
++                            child: const SizedBox(
++                              width: 22,
++                              height: 22,
++                              child: Icon(Icons.remove, size: 14),
++                            ),
+                           ),
+                           Expanded(
+                             child: GestureDetector(
+                               onTap: widget.onPickQuantity,
+                               child: Container(
+                                 alignment: Alignment.center,
+                                 padding: const EdgeInsets.symmetric(vertical: 2),
+                                 child: Text(
+                                   '${widget.quantity}',
+-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
++                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                                 ),
+                               ),
+                             ),
+                           ),
+-                          IconButton(
+-                            onPressed: widget.onIncrease,
+-                            icon: const Icon(Icons.add, size: 16),
+-                            visualDensity: VisualDensity.compact,
+-                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
++                          InkWell(
++                            onTap: widget.onIncrease,
++                            borderRadius: BorderRadius.circular(12),
++                            child: const SizedBox(
++                              width: 22,
++                              height: 22,
++                              child: Icon(Icons.add, size: 14),
++                            ),
+                           ),
+                         ],
+                       ),
+*** End Patch

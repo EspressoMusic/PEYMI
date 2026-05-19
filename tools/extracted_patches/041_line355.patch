@@ -1,0 +1,40 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+             FilledButton(
+               onPressed: () {
++                FocusManager.instance.primaryFocus?.unfocus();
+                 Navigator.pop(context);
+                 ScaffoldMessenger.of(this.context).showSnackBar(
+                   const SnackBar(content: Text('הפנייה נשלחה בהצלחה')),
+                 );
+               },
+@@
+         );
+       },
+     );
+-    phoneController.dispose();
+-    messageController.dispose();
+   }
+@@
+                 FilledButton(
+                   onPressed: () {
+                     final name = nameController.text.trim().isEmpty ? 'אנונימי' : nameController.text.trim();
+                     final message = messageController.text.trim();
+                     if (message.isEmpty) return;
++                    FocusManager.instance.primaryFocus?.unfocus();
+                     setState(() {
+                       _reviews.insert(0, {
+                         'name': name,
+@@
+                 ),
+               ],
+             );
+           },
+         );
+       },
+     );
+-    nameController.dispose();
+-    messageController.dispose();
+   }
+*** End Patch

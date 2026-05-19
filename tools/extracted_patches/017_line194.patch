@@ -1,0 +1,30 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+     final List<Widget> pages = [
++      const _SettingsHelpPage(),
+       _DealsPage(deals: _deals),
+       _OrdersPage(orders: _orders),
+-      const _SettingsHelpPage(),
+       _CatalogPage(products: _products),
+     ];
+@@
+             onDestinationSelected: (index) {
+               setState(() => _selectedIndex = index);
+             },
+             destinations: const [
++              NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות'),
+               NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
+               NavigationDestination(icon: Icon(Icons.receipt_long), label: 'הזמנות'),
+-              NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות ועזרה'),
+               NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
+             ],
+           ),
+         ),
+@@
+         Text(
+-          'הגדרות ועזרה',
++          'הגדרות',
+           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+         ),
+*** End Patch

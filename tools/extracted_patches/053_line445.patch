@@ -1,0 +1,64 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   final List<Map<String, String>> _products = const [
+-    {'name': 'בורקס', 'price': '18₪', 'category': 'מלוחים', 'subtitle': 'אפוי במקום', 'emoji': '🥐'},
+-    {'name': 'קוראסון', 'price': '16₪', 'category': 'מאפים', 'subtitle': 'חמאתי ופריך', 'emoji': '🥐'},
+-    {'name': 'פיצה אישית', 'price': '29₪', 'category': 'מלוחים', 'subtitle': 'עם גבינה ורוטב ביתי', 'emoji': '🍕'},
+-    {'name': 'עוגה אישית', 'price': '24₪', 'category': 'קינוחים', 'subtitle': 'קינוח אישי לבחירה', 'emoji': '🍰'},
++    {'name': 'בורקס', 'price': '18₪', 'category': 'מלוחים', 'subtitle': 'אפוי במקום', 'image': 'assets/images/products/burekas.png'},
++    {'name': 'קוראסון', 'price': '16₪', 'category': 'מאפים', 'subtitle': 'חמאתי ופריך', 'image': 'assets/images/products/croissant.png'},
++    {'name': 'פיצה אישית', 'price': '29₪', 'category': 'מלוחים', 'subtitle': 'עם גבינה ורוטב ביתי', 'image': 'assets/images/products/pizza.png'},
++    {'name': 'עוגה אישית', 'price': '24₪', 'category': 'קינוחים', 'subtitle': 'קינוח אישי לבחירה', 'image': 'assets/images/products/cake.png'},
+   ];
+   final List<Map<String, String>> _drinks = const [
+-    {'name': 'קפה', 'price': '12₪', 'category': 'שתייה חמה', 'subtitle': 'אספרסו או הפוך', 'emoji': '☕'},
+-    {'name': 'תה נענע', 'price': '10₪', 'category': 'שתייה חמה', 'subtitle': 'חליטה טרייה', 'emoji': '🍵'},
+-    {'name': 'סודה לימון', 'price': '11₪', 'category': 'שתייה קרה', 'subtitle': 'מרענן עם לימון', 'emoji': '🥤'},
+-    {'name': 'שייק הבית', 'price': '19₪', 'category': 'שייקים', 'subtitle': 'פירות העונה', 'emoji': '🧋'},
++    {'name': 'קפה', 'price': '12₪', 'category': 'שתייה חמה', 'subtitle': 'אספרסו או הפוך', 'image': 'assets/images/products/coffee.png'},
++    {'name': 'תה נענע', 'price': '10₪', 'category': 'שתייה חמה', 'subtitle': 'חליטה טרייה', 'image': 'assets/images/products/mint_tea.png'},
++    {'name': 'סודה לימון', 'price': '11₪', 'category': 'שתייה קרה', 'subtitle': 'מרענן עם לימון', 'image': 'assets/images/products/soda.png'},
++    {'name': 'שייק הבית', 'price': '19₪', 'category': 'שייקים', 'subtitle': 'פירות העונה', 'image': 'assets/images/products/shake.png'},
+   ];
+@@
+                   decoration: BoxDecoration(
+                     color: _pressed ? const Color(0xFFEDE2CB) : const Color(0xFFF1E9D8),
+                     borderRadius: BorderRadius.circular(16),
+                   ),
+                   alignment: Alignment.center,
+-                  child: Text(
+-                    widget.item['emoji'] ?? '🥖',
+-                    style: const TextStyle(fontSize: 48),
++                  child: AnimatedSlide(
++                    duration: const Duration(milliseconds: 220),
++                    offset: _pressed ? const Offset(0, 0.02) : Offset.zero,
++                    child: ClipRRect(
++                      borderRadius: BorderRadius.circular(14),
++                      child: Image.asset(
++                        widget.item['image']!,
++                        fit: BoxFit.cover,
++                        width: double.infinity,
++                        height: double.infinity,
++                      ),
++                    ),
+                   ),
+                 ),
+               ),
+@@
+                     children: [
+-                    Center(
+-                      child: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 28)),
+-                    ),
++                    Center(
++                      child: ClipRRect(
++                        borderRadius: BorderRadius.circular(12),
++                        child: Image.asset(
++                          item['image']!,
++                          width: 64,
++                          height: 64,
++                          fit: BoxFit.cover,
++                        ),
++                      ),
++                    ),
+*** End Patch

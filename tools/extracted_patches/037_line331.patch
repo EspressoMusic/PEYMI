@@ -1,0 +1,13 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+       child: Icon(
+         icon,
+         size: selected ? 25 : 23,
+-        color: selected ? Colors.deepOrange : Colors.black,
++        color: selected ? const Color(0xFF4E342E) : Colors.black,
+       ),
+     );
+   }
+ }
+*** End Patch

@@ -1,0 +1,18 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ import 'package:flutter/material.dart';
+-import 'package:google_fonts/google_fonts.dart';
+ import 'dart:math';
+ import 'dart:ui' show lerpDouble;
+@@
+       theme: ThemeData(
+         useMaterial3: true,
++        fontFamily: 'VarelaRound',
+         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+-        textTheme: GoogleFonts.varelaRoundTextTheme().copyWith(
++        textTheme: const TextTheme().copyWith(
+           titleLarge: const TextStyle(fontWeight: FontWeight.w900),
+           titleMedium: const TextStyle(fontWeight: FontWeight.w800),
+           bodyLarge: const TextStyle(fontWeight: FontWeight.w700),
+*** End Patch

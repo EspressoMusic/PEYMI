@@ -1,0 +1,15 @@
+---
+description: After code changes to the bakery Flutter app, restart and open it for the user
+globs: lib/**/*
+alwaysApply: false
+---
+
+# Refresh app after Flutter changes
+
+When you edit `lib/` or other app code in this project:
+
+1. Run `powershell -ExecutionPolicy Bypass -File tools/refresh_app.ps1` from the project root.
+2. Prefer the connected Android phone (SM S721B). Wait until the script reports the app is on the phone.
+3. Briefly tell the user to check their phone screen.
+
+Do this at the end of every implementation turn that changes the running app, unless the user says otherwise.

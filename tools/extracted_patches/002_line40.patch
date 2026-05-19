@@ -1,0 +1,17 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   @override
+   Widget build(BuildContext context) {
+     return ListView(
+       padding: const EdgeInsets.all(12),
+       children: [
+-        const Text(
+-          'קטלוג מוצרים',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        const SizedBox(height: 12),
+         ...products.map(
+           (item) => Card(
+             child: ListTile(
+*** End Patch

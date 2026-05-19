@@ -1,0 +1,264 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-  final List<Map<String, String>> _deals = const [
+-    {'title': '1+1 על עוגיות הבית', 'desc': 'בקנייה מעל 80₪', 'valid': 'עד יום שישי'},
+-    {'title': '20% הנחה על מגשי אירוח', 'desc': 'בהזמנה מוקדמת של יומיים', 'valid': 'השבוע בלבד'},
+-    {'title': 'משלוח חינם', 'desc': 'בהזמנה מעל 150₪', 'valid': 'כל החודש'},
+-  ];
++  final List<Map<String, dynamic>> _deals = [
++    {
++      'title': 'דיל פיצה + קולה',
++      'desc': 'פיצה אישית וסודה לימון במחיר מיוחד',
++      'valid': 'יום שישי',
++      'priceAfterDiscount': '35₪',
++      'images': ['assets/images/products/פיצה.png', 'assets/images/products/סודה.png'],
++      'items': [
++        {'name': 'פיצה אישית', 'quantity': '1', 'price': '29₪'},
++        {'name': 'סודה לימון', 'quantity': '1', 'price': '11₪'},
++      ],
++    },
++    {
++      'title': 'קפה ועוגה אישית',
++      'desc': 'קומבו מתוק לבוקר עם הנחה',
++      'valid': 'כל השבוע',
++      'priceAfterDiscount': '30₪',
++      'images': ['assets/images/products/קפה.png', 'assets/images/products/עוגה אישית.png'],
++      'items': [
++        {'name': 'קפה', 'quantity': '1', 'price': '12₪'},
++        {'name': 'עוגה אישית', 'quantity': '1', 'price': '24₪'},
++      ],
++    },
++    {
++      'title': 'קוראסון + תה נענע',
++      'desc': 'נשנוש מפנק עם חליטה חמה',
++      'valid': 'עד סוף החודש',
++      'priceAfterDiscount': '22₪',
++      'images': ['assets/images/products/קוראסון.png', 'assets/images/products/mint_tea.png'],
++      'items': [
++        {'name': 'קוראסון', 'quantity': '1', 'price': '16₪'},
++        {'name': 'תה נענע', 'quantity': '1', 'price': '10₪'},
++      ],
++    },
++  ];
++  final List<Map<String, dynamic>> _dealOrders = [];
+@@
+-    final hasActiveOrder = cartItems.isNotEmpty;
++    final hasActiveOrder = cartItems.isNotEmpty || _dealOrders.isNotEmpty;
+@@
+-      _DealsPage(deals: _deals),
++      _DealsPage(
++        deals: _deals,
++        onRedeemDeal: (deal) {
++          setState(() {
++            _dealOrders.add({
++              'id': 'DEAL-${_dealOrders.length + 1}',
++              'title': deal['title'],
++              'total': deal['priceAfterDiscount'],
++              'status': 'מוכן לאישור',
++              'date': _formatDate(DateTime.now()),
++              'items': List<Map<String, dynamic>>.from(deal['items']),
++            });
++          });
++          ScaffoldMessenger.of(context).showSnackBar(
++            const SnackBar(content: Text('הדיל נוסף להזמנות בתהליך')),
++          );
++          setState(() => _selectedIndex = 2);
++        },
++      ),
+       _OrdersPage(
+         orders: _pastOrders,
+         cartItems: cartItems,
++        dealOrders: _dealOrders,
+@@
+         onConfirmOrder: () {
+           if (!hasActiveOrder) return;
+           final total = cartItems.fold<int>(
+@@
+           setState(() {
+             final purchasedItems = cartItems
+@@
+                 .toList();
++            for (final dealOrder in _dealOrders) {
++              _pastOrders.insert(0, {
++                'id': '#${1100 + _pastOrders.length + 1}',
++                'date': _formatDate(DateTime.now()),
++                'total': dealOrder['total'],
++                'status': 'הושלמה (דיל)',
++                'progress': 1.0,
++                'items': List<Map<String, dynamic>>.from(dealOrder['items'] as List),
++              });
++            }
++            if (purchasedItems.isNotEmpty) {
+             _pastOrders.insert(0, {
+               'id': '#${1100 + _pastOrders.length + 1}',
+               'date': _formatDate(DateTime.now()),
+               'total': '$total₪',
+               'status': 'הושלמה',
+               'progress': 1.0,
+               'items': purchasedItems,
+             });
++            }
+             _cartQuantities.clear();
++            _dealOrders.clear();
+           });
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('ההזמנה אושרה בהצלחה!')),
+@@
+-class _DealsPage extends StatelessWidget {
+-  const _DealsPage({required this.deals});
+-
+-  final List<Map<String, String>> deals;
++class _DealsPage extends StatelessWidget {
++  const _DealsPage({required this.deals, required this.onRedeemDeal});
++
++  final List<Map<String, dynamic>> deals;
++  final void Function(Map<String, dynamic> deal) onRedeemDeal;
+@@
+-    const dealImagePaths = [
+-      'assets/images/products/פיצה.png',
+-      'assets/images/products/קפה.png',
+-      'assets/images/products/עוגה אישית.png',
+-      'assets/images/products/מילקשייק.png',
+-      'assets/images/products/סודה.png',
+-    ];
+     return Column(
+@@
+               final deal = deals[index];
++              final images = (deal['images'] as List).cast<String>();
+               return Container(
+@@
+-                    Row(
+-                      children: [
+-                        Expanded(
+-                          child: Container(
+-                            decoration: BoxDecoration(
+-                              color: const Color(0xFFF1E9D8),
+-                              borderRadius: BorderRadius.circular(14),
+-                            ),
+-                            height: 88,
+-                            clipBehavior: Clip.antiAlias,
+-                            child: Image.asset(
+-                              dealImagePaths[index % dealImagePaths.length],
+-                              fit: BoxFit.cover,
+-                            ),
+-                          ),
+-                        ),
+-                        const SizedBox(width: 8),
+-                        Container(
++                    Row(
++                      children: [
++                        Expanded(
++                          child: SizedBox(
++                            height: 88,
++                            child: Row(
++                              children: images.take(2).map((path) {
++                                return Expanded(
++                                  child: Container(
++                                    margin: const EdgeInsets.symmetric(horizontal: 2),
++                                    decoration: BoxDecoration(
++                                      color: const Color(0xFFF1E9D8),
++                                      borderRadius: BorderRadius.circular(12),
++                                    ),
++                                    clipBehavior: Clip.antiAlias,
++                                    child: Image.asset(path, fit: BoxFit.cover),
++                                  ),
++                                );
++                              }).toList(),
++                            ),
++                          ),
++                        ),
++                        const SizedBox(width: 8),
++                        Container(
+                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+@@
+-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+-                            textScaler: const TextScaler.linear(0.9),
++                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                           ),
+                         ),
+                       ],
+                     ),
+                     const SizedBox(height: 8),
+@@
+-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+-                      textScaler: TextScaler.linear(0.9),
++                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                     ),
+                     const SizedBox(height: 4),
+                     Text(
+                       deal['title']!,
+-                      maxLines: 1,
++                      maxLines: 2,
+                       overflow: TextOverflow.ellipsis,
+-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+-                      textScaler: const TextScaler.linear(0.9),
++                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                     ),
+                     const SizedBox(height: 4),
+                     Expanded(
+-                      child: Text(
+-                        deal['desc']!,
+-                        maxLines: 2,
+-                        overflow: TextOverflow.ellipsis,
+-                        style: TextStyle(fontSize: 11, color: Colors.brown.shade500),
+-                        textScaler: const TextScaler.linear(0.88),
++                      child: Column(
++                        crossAxisAlignment: CrossAxisAlignment.start,
++                        children: [
++                          Text(
++                            deal['desc']!,
++                            maxLines: 2,
++                            overflow: TextOverflow.ellipsis,
++                            style: TextStyle(fontSize: 13, color: Colors.brown.shade500),
++                          ),
++                          const Spacer(),
++                          Text(
++                            'אחרי הנחה: ${deal['priceAfterDiscount']}',
++                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
++                          ),
++                          const SizedBox(height: 6),
++                          SizedBox(
++                            width: double.infinity,
++                            child: FilledButton(
++                              onPressed: () => onRedeemDeal(deal),
++                              child: const Text('מימוש דיל'),
++                            ),
++                          ),
++                        ],
+                       ),
+                     ),
+                   ],
+@@
+ class _OrdersPage extends StatefulWidget {
+   const _OrdersPage({
+     required this.orders,
+     required this.cartItems,
++    required this.dealOrders,
+@@
+   final List<Map<String, dynamic>> orders;
+   final List<Map<String, String>> cartItems;
++  final List<Map<String, dynamic>> dealOrders;
+@@
+         if (widget.cartItems.isNotEmpty)
+@@
+           ),
++        if (widget.dealOrders.isNotEmpty) ...[
++          const SizedBox(height: 10),
++          const Text(
++            'דילים שמומשו',
++            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
++          ),
++          const SizedBox(height: 6),
++          ...widget.dealOrders.map(
++            (deal) => Card(
++              child: ListTile(
++                leading: const Icon(Icons.local_offer, color: Color(0xFF4E342E)),
++                title: Text(deal['title']),
++                subtitle: Text('מחיר לאחר הנחה: ${deal['total']}'),
++              ),
++            ),
++          ),
++        ],
+         if (widget.cartItems.isNotEmpty) ...[
+*** End Patch

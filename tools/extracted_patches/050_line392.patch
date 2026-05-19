@@ -1,0 +1,12 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                         return Opacity(
+                           opacity: value,
+                           child: Transform.translate(
+                             offset: Offset(0, (1 - value) * 16),
+                             child: child,
+-                          );
++                          ),
+                         );
+*** End Patch

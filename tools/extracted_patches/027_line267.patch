@@ -1,0 +1,84 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   @override
+   Widget build(BuildContext context) {
+-    return const SizedBox.expand(
+-      child: ColoredBox(
+-        color: Colors.transparent,
+-      ),
++    return ListView(
++      padding: const EdgeInsets.all(12),
++      children: [
++        const Text(
++          'הזמנות בתהליך',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 8),
++        if (cartItems.isEmpty)
++          const Card(
++            child: ListTile(
++              leading: Icon(Icons.hourglass_empty),
++              title: Text('אין הזמנות בתהליך כרגע'),
++              subtitle: Text('כשתוסיף מוצרים לסל הם יופיעו כאן'),
++            ),
++          ),
++        ...cartItems.map(
++          (item) => Card(
++            margin: const EdgeInsets.symmetric(vertical: 6),
++            child: ListTile(
++              leading: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 24)),
++              title: Text(item['name']!),
++              subtitle: Text('כמות: ${item['quantity']} | מחיר: ${item['price']}'),
++              trailing: SizedBox(
++                width: 106,
++                child: Row(
++                  children: [
++                    InkWell(
++                      onTap: () => onDecrease(item['name']!),
++                      borderRadius: BorderRadius.circular(12),
++                      child: const SizedBox(
++                        width: 24,
++                        height: 24,
++                        child: Icon(Icons.remove, size: 14),
++                      ),
++                    ),
++                    Expanded(
++                      child: Center(
++                        child: Text(
++                          item['quantity']!,
++                          style: const TextStyle(fontWeight: FontWeight.w900),
++                        ),
++                      ),
++                    ),
++                    InkWell(
++                      onTap: () => onIncrease(item['name']!),
++                      borderRadius: BorderRadius.circular(12),
++                      child: const SizedBox(
++                        width: 24,
++                        height: 24,
++                        child: Icon(Icons.add, size: 14),
++                      ),
++                    ),
++                  ],
++                ),
++              ),
++            ),
++          ),
++        ),
++        if (cartItems.isNotEmpty) ...[
++          const SizedBox(height: 10),
++          SizedBox(
++            width: double.infinity,
++            child: FilledButton.icon(
++              onPressed: onConfirmOrder,
++              icon: const Icon(Icons.check_circle),
++              label: const Text('אישור לביצוע ההזמנה'),
++            ),
++          ),
++        ],
++      ],
+     );
+   }
+ }
+*** End Patch

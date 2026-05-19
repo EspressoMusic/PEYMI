@@ -1,0 +1,22 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   @override
+   Widget build(BuildContext context) {
++    final textScale = MediaQuery.textScalerOf(context).scale(1);
++    final dealCardHeight = (textScale > 1.15) ? 390.0 : 355.0;
+     return Column(
+       children: [
+         Expanded(
+           child: GridView.builder(
+             padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+             itemCount: deals.length,
+-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+               crossAxisCount: 2,
+               crossAxisSpacing: 10,
+               mainAxisSpacing: 10,
+-              childAspectRatio: 0.55,
++              mainAxisExtent: dealCardHeight,
+             ),
+*** End Patch

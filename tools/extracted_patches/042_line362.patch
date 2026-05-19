@@ -1,0 +1,168 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ import 'package:flutter/material.dart';
+ import 'package:url_launcher/url_launcher.dart';
++import 'dart:math';
+@@
+ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
+@@
+   Future<void> _openAddReviewDialog() async {
+@@
+   }
++
++  Future<void> _openFaqPanel() async {
++    final allFaq = [
++      {
++        'q': 'מה שעות הפעילות של המאפייה?',
++        'a': 'ימים א׳-ה׳ 07:00-21:00, שישי 07:00-14:00. במוצ״ש פתוח לפי הזמנות מראש.',
++      },
++      {
++        'q': 'תוך כמה זמן משלוח מגיע?',
++        'a': 'משלוחים בעיר עד 45-60 דקות, ובאזורים סמוכים עד 90 דקות בהתאם לעומס.',
++      },
++      {
++        'q': 'אפשר לבצע הזמנה לאירוע?',
++        'a': 'כן. ניתן להזמין מגשי אירוח ועוגות אישיות לאירועים קטנים וגדולים.',
++      },
++      {
++        'q': 'אפשר לשנות הזמנה אחרי שבוצעה?',
++        'a': 'כן, עד 10 דקות מרגע האישור דרך פאנל ההזמנות או בשיחה עם שירות הלקוחות.',
++      },
++      {
++        'q': 'יש אופציות ללא סוכר או טבעוני?',
++        'a': 'יש מגוון פריטים מותאמים. מומלץ לציין בהערות הזמנה את ההעדפה התזונתית.',
++      },
++      {
++        'q': 'איך אפשר לשלם?',
++        'a': 'אפשר לשלם בכרטיס אשראי, ביט או מזומן לשליח (לפי זמינות אזורית).',
++      },
++    ];
++    final randomFaq = [...allFaq]..shuffle(Random());
++    final visibleFaq = randomFaq.take(5).toList();
++    final expanded = <int>{};
++
++    await showModalBottomSheet<void>(
++      context: context,
++      isScrollControlled: true,
++      showDragHandle: true,
++      builder: (context) {
++        return FractionallySizedBox(
++          heightFactor: 0.82,
++          child: StatefulBuilder(
++            builder: (context, setModalState) {
++              return Padding(
++                padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.stretch,
++                  children: [
++                    const Text(
++                      'שאלות נפוצות',
++                      textAlign: TextAlign.center,
++                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
++                    ),
++                    const SizedBox(height: 6),
++                    Text(
++                      'מידע על המאפייה, הזמנות ומשלוחים',
++                      textAlign: TextAlign.center,
++                      style: TextStyle(color: Colors.brown.shade500, fontSize: 14),
++                    ),
++                    const SizedBox(height: 12),
++                    Expanded(
++                      child: ListView.separated(
++                        itemCount: visibleFaq.length,
++                        separatorBuilder: (_, index) => const SizedBox(height: 10),
++                        itemBuilder: (context, index) {
++                          final faq = visibleFaq[index];
++                          final isOpen = expanded.contains(index);
++                          return AnimatedContainer(
++                            duration: const Duration(milliseconds: 220),
++                            decoration: BoxDecoration(
++                              color: const Color(0xFFF8F4EC),
++                              borderRadius: BorderRadius.circular(18),
++                              boxShadow: const [
++                                BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
++                              ],
++                            ),
++                            child: InkWell(
++                              borderRadius: BorderRadius.circular(18),
++                              onTap: () {
++                                setModalState(() {
++                                  if (isOpen) {
++                                    expanded.remove(index);
++                                  } else {
++                                    expanded.add(index);
++                                  }
++                                });
++                              },
++                              child: Padding(
++                                padding: const EdgeInsets.all(12),
++                                child: Column(
++                                  crossAxisAlignment: CrossAxisAlignment.start,
++                                  children: [
++                                    Row(
++                                      children: [
++                                        const Icon(Icons.help_outline, color: Color(0xFF4E342E)),
++                                        const SizedBox(width: 8),
++                                        Expanded(
++                                          child: Text(
++                                            faq['q']!,
++                                            style: const TextStyle(
++                                              fontWeight: FontWeight.w900,
++                                              fontSize: 15,
++                                            ),
++                                          ),
++                                        ),
++                                        AnimatedRotation(
++                                          turns: isOpen ? 0.5 : 0,
++                                          duration: const Duration(milliseconds: 220),
++                                          child: const Icon(Icons.expand_more),
++                                        ),
++                                      ],
++                                    ),
++                                    AnimatedCrossFade(
++                                      duration: const Duration(milliseconds: 220),
++                                      crossFadeState: isOpen
++                                          ? CrossFadeState.showSecond
++                                          : CrossFadeState.showFirst,
++                                      firstChild: const SizedBox.shrink(),
++                                      secondChild: Padding(
++                                        padding: const EdgeInsets.only(top: 10),
++                                        child: Text(
++                                          faq['a']!,
++                                          style: TextStyle(
++                                            fontSize: 14,
++                                            color: Colors.brown.shade700,
++                                            height: 1.4,
++                                          ),
++                                        ),
++                                      ),
++                                    ),
++                                  ],
++                                ),
++                              ),
++                            ),
++                          );
++                        },
++                      ),
++                    ),
++                  ],
++                ),
++              );
++            },
++          ),
++        );
++      },
++    );
++  }
+@@
+           onTap: () {
+             if (tile['title'] == 'צור קשר') {
+               _openContactOptions();
+             } else if (tile['title'] == 'המליצו עלינו') {
+               _openReviewsPanel();
++            } else if (tile['title'] == 'שאלות נפוצות') {
++              _openFaqPanel();
+             }
+           },
+*** End Patch

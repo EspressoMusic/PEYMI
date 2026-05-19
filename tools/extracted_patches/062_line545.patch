@@ -1,0 +1,105 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-  final List<Map<String, String>> _deals = const [
+-    {'title': '1+1 על עוגיות הבית', 'desc': 'בקנייה מעל 80₪', 'valid': 'עד יום שישי'},
+-    {'title': '20% הנחה על מגשי אירוח', 'desc': 'בהזמנה מוקדמת של יומיים', 'valid': 'השבוע בלבד'},
+-    {'title': 'משלוח חינם', 'desc': 'בהזמנה מעל 150₪', 'valid': 'כל החודש'},
+-  ];
++  final List<Map<String, dynamic>> _deals = [
++    {
++      'title': 'דיל פיצה + סודה',
++      'desc': 'פיצה אישית וסודה לימון במחיר מיוחד',
++      'valid': 'יום שישי',
++      'priceAfterDiscount': '35₪',
++      'images': ['assets/images/products/פיצה.png', 'assets/images/products/סודה.png'],
++      'items': [
++        {'name': 'פיצה אישית', 'quantity': '1', 'price': '29₪'},
++        {'name': 'סודה לימון', 'quantity': '1', 'price': '11₪'},
++      ],
++    },
++    {
++      'title': 'קפה ועוגה אישית',
++      'desc': 'קומבו מתוק לבוקר עם הנחה',
++      'valid': 'כל השבוע',
++      'priceAfterDiscount': '30₪',
++      'images': ['assets/images/products/קפה.png', 'assets/images/products/עוגה אישית.png'],
++      'items': [
++        {'name': 'קפה', 'quantity': '1', 'price': '12₪'},
++        {'name': 'עוגה אישית', 'quantity': '1', 'price': '24₪'},
++      ],
++    },
++    {
++      'title': 'קוראסון + תה נענע',
++      'desc': 'נשנוש מפנק עם חליטה חמה',
++      'valid': 'עד סוף החודש',
++      'priceAfterDiscount': '22₪',
++      'images': ['assets/images/products/קוראסון.png', 'assets/images/products/mint_tea.png'],
++      'items': [
++        {'name': 'קוראסון', 'quantity': '1', 'price': '16₪'},
++        {'name': 'תה נענע', 'quantity': '1', 'price': '10₪'},
++      ],
++    },
++  ];
++  final List<Map<String, dynamic>> _dealOrders = [];
+@@
+-    final hasActiveOrder = cartItems.isNotEmpty;
++    final hasActiveOrder = cartItems.isNotEmpty || _dealOrders.isNotEmpty;
+@@
+-      _DealsPage(deals: _deals),
++      _DealsPage(
++        deals: _deals,
++        onRedeemDeal: (deal) {
++          setState(() {
++            _dealOrders.add({
++              'id': 'DEAL-${_dealOrders.length + 1}',
++              'title': deal['title'],
++              'total': deal['priceAfterDiscount'],
++              'status': 'מוכן לאישור',
++              'date': _formatDate(DateTime.now()),
++              'items': List<Map<String, dynamic>>.from(deal['items'] as List),
++            });
++            _selectedIndex = 2;
++          });
++          ScaffoldMessenger.of(context).showSnackBar(
++            const SnackBar(content: Text('הדיל מומש ונוסף להזמנות בתהליך')),
++          );
++        },
++      ),
+       _OrdersPage(
+         orders: _pastOrders,
+         cartItems: cartItems,
++        dealOrders: _dealOrders,
+@@
+-            _pastOrders.insert(0, {
+-              'id': '#${1100 + _pastOrders.length + 1}',
+-              'date': _formatDate(DateTime.now()),
+-              'total': '$total₪',
+-              'status': 'הושלמה',
+-              'progress': 1.0,
+-              'items': purchasedItems,
+-            });
++            if (purchasedItems.isNotEmpty) {
++              _pastOrders.insert(0, {
++                'id': '#${1100 + _pastOrders.length + 1}',
++                'date': _formatDate(DateTime.now()),
++                'total': '$total₪',
++                'status': 'הושלמה',
++                'progress': 1.0,
++                'items': purchasedItems,
++              });
++            }
++            for (final dealOrder in _dealOrders) {
++              _pastOrders.insert(0, {
++                'id': '#${1100 + _pastOrders.length + 1}',
++                'date': _formatDate(DateTime.now()),
++                'total': dealOrder['total'],
++                'status': 'הושלמה (דיל)',
++                'progress': 1.0,
++                'items': List<Map<String, dynamic>>.from(dealOrder['items'] as List),
++              });
++            }
+             _cartQuantities.clear();
++            _dealOrders.clear();
+           });
+*** End Patch

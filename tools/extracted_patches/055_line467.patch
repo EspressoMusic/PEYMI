@@ -1,0 +1,17 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                 const Text(
+                   'צור קשר',
+                   textAlign: TextAlign.center,
+                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24),
+                 ),
+-                const SizedBox(height: 12),
+-                Text(
+-                  'טלפון: $_contactPhone',
+-                  textAlign: TextAlign.center,
+-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+-                ),
+                 const SizedBox(height: 20),
+                 FilledButton.icon(
+*** End Patch

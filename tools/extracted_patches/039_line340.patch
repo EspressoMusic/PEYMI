@@ -1,0 +1,10 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+         appBar: AppBar(
+-          title: const Text('מאפיית הבית'),
++          title: null,
+           centerTitle: true,
+           elevation: 10,
+           shadowColor: Colors.black38,
+*** End Patch

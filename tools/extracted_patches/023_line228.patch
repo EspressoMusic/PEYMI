@@ -1,0 +1,77 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+         bottomNavigationBar: Material(
+           elevation: 16,
+           shadowColor: Colors.black45,
+           child: NavigationBar(
+             selectedIndex: _selectedIndex,
+-            indicatorColor: Colors.orange.shade300,
++            backgroundColor: const Color(0xFFF9F2E6),
++            indicatorColor: Colors.transparent,
+             onDestinationSelected: (index) {
+               setState(() => _selectedIndex = index);
+             },
+             destinations: [
+-              const NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות'),
+-              const NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
++              NavigationDestination(
++                icon: _menuIcon(Icons.settings),
++                selectedIcon: _menuIcon(Icons.settings, selected: true),
++                label: 'הגדרות',
++              ),
++              NavigationDestination(
++                icon: _menuIcon(Icons.local_offer),
++                selectedIcon: _menuIcon(Icons.local_offer, selected: true),
++                label: 'מבצעים',
++              ),
+               NavigationDestination(
+-                icon: Badge(
++                icon: Badge(
+                   isLabelVisible: cartCount > 0,
+                   label: Text('$cartCount'),
+-                  child: const Icon(Icons.receipt_long),
++                  child: _menuIcon(Icons.receipt_long),
++                ),
++                selectedIcon: Badge(
++                  isLabelVisible: cartCount > 0,
++                  label: Text('$cartCount'),
++                  child: _menuIcon(Icons.receipt_long, selected: true),
+                 ),
+                 label: 'הזמנות',
+               ),
+-              const NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
++              NavigationDestination(
++                icon: _menuIcon(Icons.storefront),
++                selectedIcon: _menuIcon(Icons.storefront, selected: true),
++                label: 'קטלוג',
++              ),
+             ],
+           ),
+         ),
+       ),
+     );
+   }
++
++  Widget _menuIcon(IconData icon, {bool selected = false}) {
++    return AnimatedContainer(
++      duration: const Duration(milliseconds: 180),
++      padding: const EdgeInsets.all(8),
++      decoration: BoxDecoration(
++        shape: BoxShape.circle,
++        color: selected ? Colors.orange.shade100 : Colors.transparent,
++        boxShadow: selected
++            ? const [
++                BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
++              ]
++            : null,
++      ),
++      child: Icon(
++        icon,
++        size: selected ? 25 : 23,
++        color: selected ? Colors.deepOrange : Colors.black,
++      ),
++    );
++  }
+ }
+*** End Patch

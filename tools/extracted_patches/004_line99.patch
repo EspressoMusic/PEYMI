@@ -1,0 +1,156 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   final List<Map<String, String>> _products = const [
+-    {'name': 'חלת שבת', 'price': '22₪', 'category': 'לחמים'},
+-    {'name': 'עוגת שוקולד ביתית', 'price': '58₪', 'category': 'עוגות'},
+-    {'name': 'מארז קראנצ\' קוקיז', 'price': '34₪', 'category': 'עוגיות'},
+-    {'name': 'בורקס גבינה', 'price': '18₪', 'category': 'מלוחים'},
+-    {'name': 'מגש מאפי בוקר', 'price': '75₪', 'category': 'מארזים'},
++    {'name': 'חלת שבת', 'price': '22₪', 'category': 'לחמים', 'subtitle': 'חם וטרי כל בוקר', 'emoji': '🍞'},
++    {'name': 'עוגת שוקולד ביתית', 'price': '58₪', 'category': 'עוגות', 'subtitle': 'עם גנאש עשיר', 'emoji': '🍫'},
++    {'name': 'מארז קראנצ\' קוקיז', 'price': '34₪', 'category': 'עוגיות', 'subtitle': '8 יחידות במארז', 'emoji': '🍪'},
++    {'name': 'בורקס גבינה', 'price': '18₪', 'category': 'מלוחים', 'subtitle': 'אפוי במקום', 'emoji': '🥐'},
++    {'name': 'מגש מאפי בוקר', 'price': '75₪', 'category': 'מארזים', 'subtitle': 'מעולה לאירוח', 'emoji': '🧁'},
++    {'name': 'טארט לימון אישי', 'price': '26₪', 'category': 'קינוחים', 'subtitle': 'קרם לימון עדין', 'emoji': '🍋'},
+   ];
+@@
+ class _CatalogPage extends StatelessWidget {
+@@
+   @override
+   Widget build(BuildContext context) {
+-    return ListView(
+-      padding: const EdgeInsets.all(12),
+-      children: [
+-        ...products.map(
+-          (item) => Card(
+-            margin: const EdgeInsets.symmetric(vertical: 6),
+-            child: Padding(
+-              padding: const EdgeInsets.all(10),
+-              child: Row(
+-                children: [
+-                  Container(
+-                    decoration: BoxDecoration(
+-                      shape: BoxShape.circle,
+-                      gradient: LinearGradient(
+-                        colors: [Colors.orange.shade300, Colors.deepOrange.shade400],
+-                      ),
+-                      boxShadow: const [
+-                        BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+-                      ],
+-                    ),
+-                    child: const CircleAvatar(
+-                      backgroundColor: Colors.transparent,
+-                      child: Icon(Icons.cake, color: Colors.white),
+-                    ),
+-                  ),
+-                  const SizedBox(width: 12),
+-                  Expanded(
+-                    child: Column(
+-                      crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [
+-                        Text(item['name']!, style: const TextStyle(fontWeight: FontWeight.w700)),
+-                        const SizedBox(height: 2),
+-                        Text(item['category']!),
+-                        const SizedBox(height: 6),
+-                        Text(
+-                          item['price']!,
+-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+-                        ),
+-                      ],
+-                    ),
+-                  ),
+-                  FilledButton(
+-                    onPressed: () {},
+-                    child: const Text(
+-                      'להזמנה',
+-                      style: TextStyle(fontWeight: FontWeight.w800),
+-                    ),
+-                  ),
+-                ],
+-              ),
+-            ),
+-          ),
+-        ),
+-      ],
++    return GridView.builder(
++      padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
++      itemCount: products.length,
++      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++        crossAxisCount: 2,
++        crossAxisSpacing: 10,
++        mainAxisSpacing: 10,
++        childAspectRatio: 0.72,
++      ),
++      itemBuilder: (context, index) {
++        final item = products[index];
++        return Container(
++          decoration: BoxDecoration(
++            color: const Color(0xFFF8F4EC),
++            borderRadius: BorderRadius.circular(20),
++            boxShadow: const [
++              BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4)),
++            ],
++          ),
++          padding: const EdgeInsets.all(10),
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Expanded(
++                child: Container(
++                  width: double.infinity,
++                  decoration: BoxDecoration(
++                    color: const Color(0xFFF1E9D8),
++                    borderRadius: BorderRadius.circular(16),
++                  ),
++                  alignment: Alignment.center,
++                  child: Text(
++                    item['emoji'] ?? '🥖',
++                    style: const TextStyle(fontSize: 48),
++                  ),
++                ),
++              ),
++              const SizedBox(height: 8),
++              Text(
++                item['name']!,
++                maxLines: 1,
++                overflow: TextOverflow.ellipsis,
++                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
++              ),
++              const SizedBox(height: 2),
++              Text(
++                item['subtitle']!,
++                maxLines: 1,
++                overflow: TextOverflow.ellipsis,
++                style: TextStyle(fontSize: 12.5, color: Colors.brown.shade400),
++              ),
++              const SizedBox(height: 6),
++              Row(
++                children: [
++                  Text(
++                    item['price']!,
++                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
++                  ),
++                  const Spacer(),
++                  FilledButton.tonal(
++                    onPressed: () {},
++                    style: FilledButton.styleFrom(
++                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
++                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
++                      visualDensity: VisualDensity.compact,
++                    ),
++                    child: const Text(
++                      'להזמנה',
++                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
++                    ),
++                  ),
++                ],
++              ),
++            ],
++          ),
++        );
++      },
+     );
+   }
+ }
+*** End Patch

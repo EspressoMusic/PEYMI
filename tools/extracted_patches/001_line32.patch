@@ -1,0 +1,30 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ class _BakeryHomePageState extends State<BakeryHomePage> {
+-  int _selectedIndex = 0;
++  int _selectedIndex = 3;
+@@
+-    final List<Widget> pages = [
+-      _CatalogPage(products: _products),
+-      _DealsPage(deals: _deals),
+-      _OrdersPage(orders: _orders),
+-      const _SettingsHelpPage(),
+-    ];
++    final List<Widget> pages = [
++      _DealsPage(deals: _deals),
++      _OrdersPage(orders: _orders),
++      const _SettingsHelpPage(),
++      _CatalogPage(products: _products),
++    ];
+@@
+           destinations: const [
+-            NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
+             NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
+             NavigationDestination(icon: Icon(Icons.receipt_long), label: 'הזמנות'),
+             NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות ועזרה'),
++            NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
+           ],
+         ),
+       ),
+*** End Patch

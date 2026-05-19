@@ -1,0 +1,93 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   Future<void> _openPastOrderDialog(Map<String, dynamic> order) async {
+     final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+     await showDialog<void>(
+       context: context,
+       builder: (context) {
+-        return AlertDialog(
+-          title: Text('הזמנה ${order['id']}'),
+-          content: SizedBox(
+-            width: 320,
+-            child: SingleChildScrollView(
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                mainAxisSize: MainAxisSize.min,
+-                children: [
+-                  Text('מספר הזמנה: ${order['id']}'),
+-                  Text('תאריך: ${order['date']}'),
+-                  Text('סטטוס: ${order['status']}'),
+-                  Text('מחיר כולל: ${order['total']}'),
+-                  const SizedBox(height: 10),
+-                  const Text('מה הוזמן:', style: TextStyle(fontWeight: FontWeight.w900)),
+-                  const SizedBox(height: 4),
+-                  ...items.map(
+-                    (item) => Text('• ${item['name']} x${item['quantity']} (${item['price']})'),
+-                  ),
+-                ],
++        return Directionality(
++          textDirection: TextDirection.rtl,
++          child: AlertDialog(
++            title: Text('הזמנה ${order['id']}', textAlign: TextAlign.right),
++            content: SizedBox(
++              width: 320,
++              child: SingleChildScrollView(
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  mainAxisSize: MainAxisSize.min,
++                  children: [
++                    Text('מספר הזמנה: ${order['id']}', textAlign: TextAlign.right),
++                    Text('תאריך: ${order['date']}', textAlign: TextAlign.right),
++                    Text('סטטוס: ${order['status']}', textAlign: TextAlign.right),
++                    Text('מחיר כולל: ${order['total']}', textAlign: TextAlign.right),
++                    const SizedBox(height: 10),
++                    const Text(
++                      'מה הוזמן:',
++                      textAlign: TextAlign.right,
++                      style: TextStyle(fontWeight: FontWeight.w900),
++                    ),
++                    const SizedBox(height: 4),
++                    ...items.map(
++                      (item) => Text(
++                        '• ${item['name']} x${item['quantity']} (${item['price']})',
++                        textAlign: TextAlign.right,
++                      ),
++                    ),
++                  ],
++                ),
+               ),
+             ),
+-          ),
+-          actions: [
+-            TextButton(
+-              onPressed: () => Navigator.pop(context),
+-              child: const Text('סגירה'),
+-            ),
+-            FilledButton(
+-              onPressed: () {
+-                widget.onRepeatOrder(order);
+-                Navigator.pop(context);
+-              },
+-              child: const Text('הזמנה חוזרת'),
+-            ),
+-          ],
++            actions: [
++              TextButton(
++                onPressed: () => Navigator.pop(context),
++                child: const Text('סגירה'),
++              ),
++              FilledButton(
++                onPressed: () {
++                  widget.onRepeatOrder(order);
++                  Navigator.pop(context);
++                },
++                child: const Text('הזמנה חוזרת'),
++              ),
++            ],
++          ),
+         );
+       },
+     );
+   }
+*** End Patch

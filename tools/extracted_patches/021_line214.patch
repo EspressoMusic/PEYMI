@@ -1,0 +1,261 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ class _BakeryHomePageState extends State<BakeryHomePage> {
+   int _selectedIndex = 3;
++  final Map<String, int> _cartQuantities = {};
+ 
+   final List<Map<String, String>> _products = const [
+@@
+     {'name': 'עוגה אישית', 'price': '24₪', 'category': 'קינוחים', 'subtitle': 'קינוח אישי לבחירה', 'emoji': '🍰'},
+   ];
++  final List<Map<String, String>> _drinks = const [
++    {'name': 'קפה', 'price': '12₪', 'category': 'שתייה חמה', 'subtitle': 'אספרסו או הפוך', 'emoji': '☕'},
++    {'name': 'תה נענע', 'price': '10₪', 'category': 'שתייה חמה', 'subtitle': 'חליטה טרייה', 'emoji': '🍵'},
++    {'name': 'סודה לימון', 'price': '11₪', 'category': 'שתייה קרה', 'subtitle': 'מרענן עם לימון', 'emoji': '🥤'},
++    {'name': 'שייק הבית', 'price': '19₪', 'category': 'שייקים', 'subtitle': 'פירות העונה', 'emoji': '🧋'},
++  ];
+@@
+   @override
+   Widget build(BuildContext context) {
++    final allItems = [..._products, ..._drinks];
++    final itemByName = {for (final item in allItems) item['name']!: item};
++    final cartItems = _cartQuantities.entries
++        .where((entry) => entry.value > 0)
++        .map((entry) {
++          final base = itemByName[entry.key]!;
++          return {
++            ...base,
++            'quantity': entry.value.toString(),
++          };
++        })
++        .toList();
++    final cartCount = _cartQuantities.values.fold<int>(0, (sum, q) => sum + q);
++
+     final List<Widget> pages = [
+-      const _SettingsHelpPage(),
++      _SettingsHelpPage(),
+       _DealsPage(deals: _deals),
+-      _OrdersPage(orders: _orders),
+-      _CatalogPage(products: _products),
++      _OrdersPage(
++        orders: _orders,
++        cartItems: cartItems,
++        onDecrease: (name) {
++          final current = _cartQuantities[name] ?? 0;
++          if (current <= 0) return;
++          setState(() => _cartQuantities[name] = current - 1);
++        },
++        onIncrease: (name) {
++          final current = _cartQuantities[name] ?? 0;
++          if (current >= 10) return;
++          setState(() => _cartQuantities[name] = current + 1);
++        },
++        onConfirmOrder: () {
++          if (cartCount == 0) return;
++          setState(() {
++            _cartQuantities.clear();
++          });
++          ScaffoldMessenger.of(context).showSnackBar(
++            const SnackBar(content: Text('ההזמנה אושרה בהצלחה!')),
++          );
++        },
++      ),
++      _CatalogPage(
++        products: _products,
++        drinks: _drinks,
++        quantities: _cartQuantities,
++        onSetQuantity: (name, quantity) {
++          setState(() {
++            _cartQuantities[name] = quantity.clamp(0, 10);
++          });
++        },
++      ),
+     ];
+@@
+             onDestinationSelected: (index) {
+               setState(() => _selectedIndex = index);
+             },
+-            destinations: const [
+-              NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות'),
+-              NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
+-              NavigationDestination(icon: Icon(Icons.receipt_long), label: 'הזמנות'),
+-              NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
++            destinations: [
++              const NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות'),
++              const NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
++              NavigationDestination(
++                icon: Badge(
++                  isLabelVisible: cartCount > 0,
++                  label: Text('$cartCount'),
++                  child: const Icon(Icons.receipt_long),
++                ),
++                label: 'הזמנות',
++              ),
++              const NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
+             ],
+           ),
+         ),
+@@
+ class _CatalogPage extends StatefulWidget {
+-  const _CatalogPage({required this.products});
++  const _CatalogPage({
++    required this.products,
++    required this.drinks,
++    required this.quantities,
++    required this.onSetQuantity,
++  });
+ 
+   final List<Map<String, String>> products;
++  final List<Map<String, String>> drinks;
++  final Map<String, int> quantities;
++  final void Function(String name, int quantity) onSetQuantity;
+@@
+ class _CatalogPageState extends State<_CatalogPage> {
+   bool _showDrinks = false;
+   bool _showConfetti = false;
+   int _confettiToken = 0;
+-  final Map<String, int> _quantities = {};
+-
+-  final List<Map<String, String>> _drinks = const [
+-    {'name': 'קפה', 'price': '12₪', 'category': 'שתייה חמה', 'subtitle': 'אספרסו או הפוך', 'emoji': '☕'},
+-    {'name': 'תה נענע', 'price': '10₪', 'category': 'שתייה חמה', 'subtitle': 'חליטה טרייה', 'emoji': '🍵'},
+-    {'name': 'סודה לימון', 'price': '11₪', 'category': 'שתייה קרה', 'subtitle': 'מרענן עם לימון', 'emoji': '🥤'},
+-    {'name': 'שייק הבית', 'price': '19₪', 'category': 'שייקים', 'subtitle': 'פירות העונה', 'emoji': '🧋'},
+-  ];
+ 
+   @override
+   Widget build(BuildContext context) {
+-    final items = _showDrinks ? _drinks : widget.products;
++    final items = _showDrinks ? widget.drinks : widget.products;
+@@
+                       child: _AnimatedProductCard(
+                         item: item,
+-                        quantity: _quantities[item['name']] ?? 0,
++                        quantity: widget.quantities[item['name']] ?? 0,
+                         onDecrease: () {
+-                          final current = _quantities[item['name']] ?? 0;
++                          final current = widget.quantities[item['name']] ?? 0;
+                           if (current <= 0) return;
+-                          setState(() {
+-                            _quantities[item['name']!] = current - 1;
+-                          });
++                          widget.onSetQuantity(item['name']!, current - 1);
+                         },
+                         onIncrease: () {
+-                          final current = _quantities[item['name']] ?? 0;
++                          final current = widget.quantities[item['name']] ?? 0;
+                           if (current >= 10) return;
++                          widget.onSetQuantity(item['name']!, current + 1);
+                           setState(() {
+-                            _quantities[item['name']!] = current + 1;
+                             _showConfetti = true;
+                             _confettiToken++;
+                           });
+@@
+                           final selected = await _showQuantityPicker(
+                             context: context,
+-                            current: _quantities[item['name']] ?? 0,
++                            current: widget.quantities[item['name']] ?? 0,
+                           );
+                           if (selected == null) return;
++                          widget.onSetQuantity(item['name']!, selected);
+                           setState(() {
+-                            _quantities[item['name']!] = selected;
+                             if (selected > 0) {
+                               _showConfetti = true;
+                               _confettiToken++;
+@@
+ class _OrdersPage extends StatelessWidget {
+-  const _OrdersPage({required this.orders});
++  const _OrdersPage({
++    required this.orders,
++    required this.cartItems,
++    required this.onDecrease,
++    required this.onIncrease,
++    required this.onConfirmOrder,
++  });
+ 
+   final List<Map<String, dynamic>> orders;
++  final List<Map<String, String>> cartItems;
++  final void Function(String name) onDecrease;
++  final void Function(String name) onIncrease;
++  final VoidCallback onConfirmOrder;
+@@
+   Widget build(BuildContext context) {
+     return ListView(
+       padding: const EdgeInsets.all(12),
+       children: [
++        const Text(
++          'העגלה שלך',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 8),
++        if (cartItems.isEmpty)
++          const Card(
++            child: ListTile(
++              leading: Icon(Icons.shopping_cart_outlined),
++              title: Text('העגלה ריקה'),
++              subtitle: Text('הוסף מוצרים מהקטלוג כדי לבצע הזמנה'),
++            ),
++          ),
++        ...cartItems.map(
++          (item) => Card(
++            margin: const EdgeInsets.symmetric(vertical: 6),
++            child: ListTile(
++              leading: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 24)),
++              title: Text(item['name']!),
++              subtitle: Text('${item['price']}'),
++              trailing: SizedBox(
++                width: 106,
++                child: Row(
++                  children: [
++                    InkWell(
++                      onTap: () => onDecrease(item['name']!),
++                      borderRadius: BorderRadius.circular(12),
++                      child: const SizedBox(
++                        width: 24,
++                        height: 24,
++                        child: Icon(Icons.remove, size: 14),
++                      ),
++                    ),
++                    Expanded(
++                      child: Center(
++                        child: Text(
++                          item['quantity']!,
++                          style: const TextStyle(fontWeight: FontWeight.w900),
++                        ),
++                      ),
++                    ),
++                    InkWell(
++                      onTap: () => onIncrease(item['name']!),
++                      borderRadius: BorderRadius.circular(12),
++                      child: const SizedBox(
++                        width: 24,
++                        height: 24,
++                        child: Icon(Icons.add, size: 14),
++                      ),
++                    ),
++                  ],
++                ),
++              ),
++            ),
++          ),
++        ),
++        if (cartItems.isNotEmpty) ...[
++          const SizedBox(height: 8),
++          SizedBox(
++            width: double.infinity,
++            child: FilledButton.icon(
++              onPressed: onConfirmOrder,
++              icon: const Icon(Icons.check_circle),
++              label: const Text('אישור לביצוע ההזמנה'),
++            ),
++          ),
++          const SizedBox(height: 16),
++        ],
+         const Text(
+           'פאנל הזמנות',
+           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+         ),
+*** End Patch

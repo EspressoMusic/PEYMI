@@ -1,0 +1,9 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-      title: 'מאפים מהבית',
++      title: 'מאפיית הבית',
+@@
+-          title: const Text('מאפים מהבית'),
++          title: const Text('מאפיית הבית'),
+*** End Patch

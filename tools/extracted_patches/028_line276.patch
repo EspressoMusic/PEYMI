@@ -1,0 +1,111 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-  final List<Map<String, dynamic>> _orders = const [
++  final List<Map<String, dynamic>> _pastOrders = [
+     {
+       'id': '#1042',
+       'date': '24/04/2026',
+       'total': '132₪',
+-      'status': 'בדרך אליך',
+-      'progress': 0.75
++      'status': 'נמסר',
++      'progress': 1.0
+     },
+@@
+       _OrdersPage(
+-        orders: _orders,
++        orders: _pastOrders,
+         cartItems: cartItems,
+@@
+         onConfirmOrder: () {
+           if (cartCount == 0) return;
++          final total = cartItems.fold<int>(
++            0,
++            (sum, item) =>
++                sum + ((_parsePrice(item['price'] ?? '0')) * (int.tryParse(item['quantity'] ?? '0') ?? 0)),
++          );
+           setState(() {
++            _pastOrders.insert(0, {
++              'id': '#${1100 + _pastOrders.length + 1}',
++              'date': _formatDate(DateTime.now()),
++              'total': '${total}₪',
++              'status': 'הושלמה',
++              'progress': 1.0,
++            });
+             _cartQuantities.clear();
+           });
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('ההזמנה אושרה בהצלחה!')),
+           );
+         },
+@@
+   Widget _menuIcon(IconData icon, {bool selected = false}) {
+@@
+   }
++
++  int _parsePrice(String value) {
++    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
++    return int.tryParse(digits) ?? 0;
++  }
++
++  String _formatDate(DateTime date) {
++    String two(int n) => n.toString().padLeft(2, '0');
++    return '${two(date.day)}/${two(date.month)}/${date.year}';
++  }
+ }
+@@
+         if (cartItems.isNotEmpty) ...[
+           const SizedBox(height: 10),
+           SizedBox(
+             width: double.infinity,
+             child: FilledButton.icon(
+               onPressed: onConfirmOrder,
+               icon: const Icon(Icons.check_circle),
+               label: const Text('אישור לביצוע ההזמנה'),
+             ),
+           ),
+         ],
++        const SizedBox(height: 16),
++        const Text(
++          'הזמנות מהעבר',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 8),
++        if (orders.isEmpty)
++          const Card(
++            child: ListTile(
++              leading: Icon(Icons.history_toggle_off),
++              title: Text('אין הזמנות עבר'),
++              subtitle: Text('לאחר סיום הזמנה היא תופיע כאן'),
++            ),
++          ),
++        ...orders.map(
++          (order) => Card(
++            margin: const EdgeInsets.symmetric(vertical: 6),
++            child: Padding(
++              padding: const EdgeInsets.all(12),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  Row(
++                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
++                    children: [
++                      Text(order['id'], style: const TextStyle(fontWeight: FontWeight.bold)),
++                      Text(order['total']),
++                    ],
++                  ),
++                  const SizedBox(height: 4),
++                  Text('תאריך: ${order['date']}'),
++                  const SizedBox(height: 4),
++                  Text('סטטוס: ${order['status']}'),
++                ],
++              ),
++            ),
++          ),
++        ),
+       ],
+     );
+   }
+ }
+*** End Patch

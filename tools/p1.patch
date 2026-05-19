@@ -1,0 +1,17 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                 OutlinedButton.icon(
+                   style: OutlinedButton.styleFrom(
+                     minimumSize: const Size(double.infinity, 62),
+                   ),
+@@
+                   },
+                   icon: const Icon(Icons.edit_note, size: 24),
+-                  label: const Text('פנייה דרך האפליקציה'),
++                  label: const Text(
++                    'פנייה דרך האפליקציה',
++                    style: TextStyle(fontWeight: FontWeight.w900),
++                  ),
+                 ),
+*** End Patch

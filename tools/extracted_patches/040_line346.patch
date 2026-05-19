@@ -1,0 +1,107 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   Future<void> _openContactOptions() async {
+     await showModalBottomSheet<void>(
+       context: context,
++      isScrollControlled: true,
+       showDragHandle: true,
+       builder: (context) {
+-        return Padding(
+-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+-          child: Column(
+-            mainAxisSize: MainAxisSize.min,
+-            crossAxisAlignment: CrossAxisAlignment.stretch,
+-            children: [
+-              const Text(
+-                'צור קשר',
+-                textAlign: TextAlign.center,
+-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+-              ),
+-              const SizedBox(height: 10),
+-              Text(
+-                'טלפון: $_contactPhone',
+-                textAlign: TextAlign.center,
+-                style: const TextStyle(fontWeight: FontWeight.w700),
+-              ),
+-              const SizedBox(height: 14),
+-              FilledButton.icon(
+-                onPressed: () async {
+-                  final uri = Uri.parse('https://wa.me/972${_contactPhone.substring(1)}');
+-                  if (await canLaunchUrl(uri)) {
+-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+-                  } else if (mounted) {
+-                    ScaffoldMessenger.of(this.context).showSnackBar(
+-                      const SnackBar(content: Text('לא ניתן לפתוח וואטסאפ כרגע')),
+-                    );
+-                  }
+-                },
+-                icon: const Icon(Icons.chat),
+-                label: const Text('מעבר לוואטסאפ'),
+-              ),
+-              const SizedBox(height: 8),
+-              OutlinedButton.icon(
+-                onPressed: () {
+-                  Navigator.pop(context);
+-                  _openOnlineContactForm();
+-                },
+-                icon: const Icon(Icons.edit_note),
+-                label: const Text('פנייה מקוונת באפליקציה'),
+-              ),
+-            ],
++        return FractionallySizedBox(
++          heightFactor: 0.72,
++          child: Padding(
++            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
++            child: Column(
++              mainAxisSize: MainAxisSize.max,
++              crossAxisAlignment: CrossAxisAlignment.stretch,
++              children: [
++                const Text(
++                  'צור קשר',
++                  textAlign: TextAlign.center,
++                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24),
++                ),
++                const SizedBox(height: 12),
++                Text(
++                  'טלפון: $_contactPhone',
++                  textAlign: TextAlign.center,
++                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
++                ),
++                const SizedBox(height: 20),
++                FilledButton.icon(
++                  style: FilledButton.styleFrom(
++                    minimumSize: const Size(double.infinity, 62),
++                  ),
++                  onPressed: () async {
++                    final uri = Uri.parse('https://wa.me/972${_contactPhone.substring(1)}');
++                    if (await canLaunchUrl(uri)) {
++                      await launchUrl(uri, mode: LaunchMode.externalApplication);
++                    } else if (mounted) {
++                      ScaffoldMessenger.of(this.context).showSnackBar(
++                        const SnackBar(content: Text('לא ניתן לפתוח וואטסאפ כרגע')),
++                      );
++                    }
++                  },
++                  icon: const Icon(Icons.chat, size: 24),
++                  label: const Text('מעבר לוואטסאפ'),
++                ),
++                const SizedBox(height: 14),
++                OutlinedButton.icon(
++                  style: OutlinedButton.styleFrom(
++                    minimumSize: const Size(double.infinity, 62),
++                  ),
++                  onPressed: () {
++                    Navigator.pop(context);
++                    _openOnlineContactForm();
++                  },
++                  icon: const Icon(Icons.edit_note, size: 24),
++                  label: const Text('פנייה דרך האפליקציה'),
++                ),
++                const Spacer(),
++              ],
++            ),
+           ),
+         );
+       },
+*** End Patch

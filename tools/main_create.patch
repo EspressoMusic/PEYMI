@@ -1,0 +1,387 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-import 'package:flutter/material.dart';
+-
+-void main() {
+-  runApp(const MyApp());
+-}
+-
+-class MyApp extends StatelessWidget {
+-  const MyApp({super.key});
+-
+-  // This widget is the root of your application.
+-  @override
+-  Widget build(BuildContext context) {
+-    return MaterialApp(
+-      title: 'Flutter Demo',
+-      theme: ThemeData(
+-        // This is the theme of your application.
+-        //
+-        // TRY THIS: Try running your application with "flutter run". You'll see
+-        // the application has a purple toolbar. Then, without quitting the app,
+-        // try changing the seedColor in the colorScheme below to Colors.green
+-        // and then invoke "hot reload" (save your changes or press the "hot
+-        // reload" button in a Flutter-supported IDE, or press "r" if you used
+-        // the command line to start the app).
+-        //
+-        // Notice that the counter didn't reset back to zero; the application
+-        // state is not lost during the reload. To reset the state, use hot
+-        // restart instead.
+-        //
+-        // This works for code too, not just values: Most code changes can be
+-        // tested with just a hot reload.
+-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+-      ),
+-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+-    );
+-  }
+-}
+-
+-class MyHomePage extends StatefulWidget {
+-  const MyHomePage({super.key, required this.title});
+-
+-  // This widget is the home page of your application. It is stateful, meaning
+-  // that it has a State object (defined below) that contains fields that affect
+-  // how it looks.
+-
+-  // This class is the configuration for the state. It holds the values (in this
+-  // case the title) provided by the parent (in this case the App widget) and
+-  // used by the build method of the State. Fields in a Widget subclass are
+-  // always marked "final".
+-
+-  final String title;
+-
+-  @override
+-  State<MyHomePage> createState() => _MyHomePageState();
+-}
+-
+-class _MyHomePageState extends State<MyHomePage> {
+-  int _counter = 0;
+-
+-  void _incrementCounter() {
+-    setState(() {
+-      // This call to setState tells the Flutter framework that something has
+-      // changed in this State, which causes it to rerun the build method below
+-      // so that the display can reflect the updated values. If we changed
+-      // _counter without calling setState(), then the build method would not be
+-      // called again, and so nothing would appear to happen.
+-      _counter++;
+-    });
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    // This method is rerun every time setState is called, for instance as done
+-    // by the _incrementCounter method above.
+-    //
+-    // The Flutter framework has been optimized to make rerunning build methods
+-    // fast, so that you can just rebuild anything that needs updating rather
+-    // than having to individually change instances of widgets.
+-    return Scaffold(
+-      appBar: AppBar(
+-        // TRY THIS: Try changing the color here to a specific color (to
+-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
+-        // change color while the other colors stay the same.
+-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+-        // Here we take the value from the MyHomePage object that was created by
+-        // the App.build method, and use it to set our appbar title.
+-        title: Text(widget.title),
+-      ),
+-      body: Center(
+-        // Center is a layout widget. It takes a single child and positions it
+-        // in the middle of the parent.
+-        child: Column(
+-          // Column is also a layout widget. It takes a list of children and
+-          // arranges them vertically. By default, it sizes itself to fit its
+-          // children horizontally, and tries to be as tall as its parent.
+-          //
+-          // Column has various properties to control how it sizes itself and
+-          // how it positions its children. Here we use mainAxisAlignment to
+-          // center the children vertically; the main axis here is the vertical
+-          // axis because Columns are vertical (the cross axis would be
+-          // horizontal).
+-          //
+-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
+-          // action in the IDE, or press "p" in the console), to see the
+-          // wireframe for each widget.
+-          mainAxisAlignment: .center,
+-          children: [
+-            const Text('You have pushed the button this many times:'),
+-            Text(
+-              '$_counter',
+-              style: Theme.of(context).textTheme.headlineMedium,
+-            ),
+-          ],
+-        ),
+-      ),
+-      floatingActionButton: FloatingActionButton(
+-        onPressed: _incrementCounter,
+-        tooltip: 'Increment',
+-        child: const Icon(Icons.add),
+-      ),
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++
++void main() {
++  runApp(const BakeryApp());
++}
++
++class BakeryApp extends StatelessWidget {
++  const BakeryApp({super.key});
++
++  @override
++  Widget build(BuildContext context) {
++    return MaterialApp(
++      debugShowCheckedModeBanner: false,
++      title: 'מאפים מהבית',
++      theme: ThemeData(
++        useMaterial3: true,
++        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
++      ),
++      home: const BakeryHomePage(),
++    );
++  }
++}
++
++class BakeryHomePage extends StatefulWidget {
++  const BakeryHomePage({super.key});
++
++  @override
++  State<BakeryHomePage> createState() => _BakeryHomePageState();
++}
++
++class _BakeryHomePageState extends State<BakeryHomePage> {
++  int _selectedIndex = 0;
++
++  final List<Map<String, String>> _products = const [
++    {'name': 'חלת שבת', 'price': '22₪', 'category': 'לחמים'},
++    {'name': 'עוגת שוקולד ביתית', 'price': '58₪', 'category': 'עוגות'},
++    {'name': 'מארז קראנצ\' קוקיז', 'price': '34₪', 'category': 'עוגיות'},
++    {'name': 'בורקס גבינה', 'price': '18₪', 'category': 'מלוחים'},
++    {'name': 'מגש מאפי בוקר', 'price': '75₪', 'category': 'מארזים'},
++  ];
++
++  final List<Map<String, String>> _deals = const [
++    {'title': '1+1 על עוגיות הבית', 'desc': 'בקנייה מעל 80₪', 'valid': 'עד יום שישי'},
++    {'title': '20% הנחה על מגשי אירוח', 'desc': 'בהזמנה מוקדמת של יומיים', 'valid': 'השבוע בלבד'},
++    {'title': 'משלוח חינם', 'desc': 'בהזמנה מעל 150₪', 'valid': 'כל החודש'},
++  ];
++
++  final List<Map<String, dynamic>> _orders = const [
++    {
++      'id': '#1042',
++      'date': '24/04/2026',
++      'total': '132₪',
++      'status': 'בדרך אליך',
++      'progress': 0.75
++    },
++    {
++      'id': '#1031',
++      'date': '17/04/2026',
++      'total': '96₪',
++      'status': 'נמסר',
++      'progress': 1.0
++    },
++    {
++      'id': '#1018',
++      'date': '08/04/2026',
++      'total': '210₪',
++      'status': 'נמסר',
++      'progress': 1.0
++    },
++  ];
++
++  @override
++  Widget build(BuildContext context) {
++    final List<Widget> pages = [
++      _CatalogPage(products: _products),
++      _DealsPage(deals: _deals),
++      _OrdersPage(orders: _orders),
++      const _SettingsHelpPage(),
++    ];
++
++    return Directionality(
++      textDirection: TextDirection.rtl,
++      child: Scaffold(
++        appBar: AppBar(
++          title: const Text('מאפים מהבית'),
++          centerTitle: true,
++        ),
++        body: pages[_selectedIndex],
++        bottomNavigationBar: NavigationBar(
++          selectedIndex: _selectedIndex,
++          onDestinationSelected: (index) {
++            setState(() => _selectedIndex = index);
++          },
++          destinations: const [
++            NavigationDestination(icon: Icon(Icons.storefront), label: 'קטלוג'),
++            NavigationDestination(icon: Icon(Icons.local_offer), label: 'מבצעים'),
++            NavigationDestination(icon: Icon(Icons.receipt_long), label: 'הזמנות'),
++            NavigationDestination(icon: Icon(Icons.settings), label: 'הגדרות ועזרה'),
++          ],
++        ),
++      ),
++    );
++  }
++}
++
++class _CatalogPage extends StatelessWidget {
++  const _CatalogPage({required this.products});
++
++  final List<Map<String, String>> products;
++
++  @override
++  Widget build(BuildContext context) {
++    return ListView(
++      padding: const EdgeInsets.all(12),
++      children: [
++        const Text(
++          'קטלוג מוצרים',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 12),
++        ...products.map(
++          (item) => Card(
++            child: ListTile(
++              leading: const CircleAvatar(child: Icon(Icons.cake)),
++              title: Text(item['name']!),
++              subtitle: Text(item['category']!),
++              trailing: Text(
++                item['price']!,
++                style: const TextStyle(fontWeight: FontWeight.bold),
++              ),
++            ),
++          ),
++        ),
++      ],
++    );
++  }
++}
++
++class _DealsPage extends StatelessWidget {
++  const _DealsPage({required this.deals});
++
++  final List<Map<String, String>> deals;
++
++  @override
++  Widget build(BuildContext context) {
++    return ListView(
++      padding: const EdgeInsets.all(12),
++      children: [
++        const Text(
++          'מבצעים ודילים',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 12),
++        ...deals.map(
++          (deal) => Card(
++            color: Colors.orange.shade50,
++            child: ListTile(
++              leading: const Icon(Icons.discount, color: Colors.deepOrange),
++              title: Text(deal['title']!),
++              subtitle: Text('${deal['desc']!}\nתוקף: ${deal['valid']!}'),
++              isThreeLine: true,
++            ),
++          ),
++        ),
++      ],
++    );
++  }
++}
++
++class _OrdersPage extends StatelessWidget {
++  const _OrdersPage({required this.orders});
++
++  final List<Map<String, dynamic>> orders;
++
++  @override
++  Widget build(BuildContext context) {
++    return ListView(
++      padding: const EdgeInsets.all(12),
++      children: [
++        const Text(
++          'פאנל הזמנות',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 8),
++        const Text('היסטוריית הזמנות ומעקב משלוחים בזמן אמת'),
++        const SizedBox(height: 14),
++        ...orders.map(
++          (order) => Card(
++            child: Padding(
++              padding: const EdgeInsets.all(12),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  Row(
++                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
++                    children: [
++                      Text(order['id'], style: const TextStyle(fontWeight: FontWeight.bold)),
++                      Text(order['total']),
++                    ],
++                  ),
++                  const SizedBox(height: 4),
++                  Text('תאריך: ${order['date']}'),
++                  const SizedBox(height: 4),
++                  Text('סטטוס משלוח: ${order['status']}'),
++                  const SizedBox(height: 10),
++                  LinearProgressIndicator(value: order['progress']),
++                ],
++              ),
++            ),
++          ),
++        ),
++      ],
++    );
++  }
++}
++
++class _SettingsHelpPage extends StatelessWidget {
++  const _SettingsHelpPage();
++
++  @override
++  Widget build(BuildContext context) {
++    return ListView(
++      padding: const EdgeInsets.all(12),
++      children: const [
++        Text(
++          'הגדרות ועזרה',
++          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        SizedBox(height: 10),
++        Card(
++          child: ListTile(
++            leading: Icon(Icons.notifications_active),
++            title: Text('התראות'),
++            subtitle: Text('קבלת עדכוני מבצעים ומשלוחים'),
++          ),
++        ),
++        Card(
++          child: ListTile(
++            leading: Icon(Icons.location_on),
++            title: Text('כתובת משלוח'),
++            subtitle: Text('רחוב הדוגמה 12, תל אביב'),
++          ),
++        ),
++        Card(
++          child: ListTile(
++            leading: Icon(Icons.help_outline),
++            title: Text('מרכז עזרה'),
++            subtitle: Text('שאלות נפוצות, יצירת קשר ותמיכה'),
++          ),
++        ),
++        Card(
++          child: ListTile(
++            leading: Icon(Icons.phone),
++            title: Text('יצירת קשר'),
++            subtitle: Text('050-1234567 | bakery@example.com'),
++          ),
++        ),
++      ],
++    );
++  }
++}
+*** End Patch

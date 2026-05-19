@@ -1,0 +1,10 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                       decoration: BoxDecoration(
+-                        color: Colors.white.withOpacity(0.7),
++                        color: Colors.white.withValues(alpha: 0.7),
+                         borderRadius: BorderRadius.circular(20),
+                         border: Border.all(color: Colors.orange.shade200),
+                       ),
+*** End Patch

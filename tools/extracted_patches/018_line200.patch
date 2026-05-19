@@ -1,0 +1,178 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ class _CatalogPageState extends State<_CatalogPage> {
+   bool _showDrinks = false;
+   bool _showConfetti = false;
+   int _confettiToken = 0;
++  final Map<String, int> _quantities = {};
+@@
+                       child: _AnimatedProductCard(
+                         item: item,
+-                        onOrderPressed: () {
+-                          setState(() {
+-                            _showConfetti = true;
+-                            _confettiToken++;
+-                          });
++                        quantity: _quantities[item['name']] ?? 0,
++                        onDecrease: () {
++                          final current = _quantities[item['name']] ?? 0;
++                          if (current <= 0) return;
++                          setState(() {
++                            _quantities[item['name']!] = current - 1;
++                          });
++                        },
++                        onIncrease: () {
++                          final current = _quantities[item['name']] ?? 0;
++                          if (current >= 10) return;
++                          setState(() {
++                            _quantities[item['name']!] = current + 1;
++                            _showConfetti = true;
++                            _confettiToken++;
++                          });
++                        },
++                        onPickQuantity: () async {
++                          final selected = await _showQuantityPicker(
++                            context: context,
++                            current: _quantities[item['name']] ?? 0,
++                          );
++                          if (selected == null) return;
++                          setState(() {
++                            _quantities[item['name']!] = selected;
++                            if (selected > 0) {
++                              _showConfetti = true;
++                              _confettiToken++;
++                            }
++                          });
+                         },
+                       ),
+@@
+   }
++
++  Future<int?> _showQuantityPicker({
++    required BuildContext context,
++    required int current,
++  }) async {
++    int tempSelected = current;
++    return showModalBottomSheet<int>(
++      context: context,
++      showDragHandle: true,
++      builder: (context) {
++        return SizedBox(
++          height: 280,
++          child: Column(
++            children: [
++              const SizedBox(height: 8),
++              const Text('בחר כמות (עד 10)', style: TextStyle(fontWeight: FontWeight.w800)),
++              const SizedBox(height: 8),
++              Expanded(
++                child: ListWheelScrollView.useDelegate(
++                  itemExtent: 44,
++                  perspective: 0.005,
++                  diameterRatio: 1.2,
++                  onSelectedItemChanged: (index) => tempSelected = index,
++                  controller: FixedExtentScrollController(initialItem: current.clamp(0, 10)),
++                  physics: const FixedExtentScrollPhysics(),
++                  childDelegate: ListWheelChildBuilderDelegate(
++                    builder: (context, index) {
++                      if (index < 0 || index > 10) return null;
++                      return Center(
++                        child: Text(
++                          '$index',
++                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
++                        ),
++                      );
++                    },
++                  ),
++                ),
++              ),
++              Padding(
++                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
++                child: SizedBox(
++                  width: double.infinity,
++                  child: FilledButton(
++                    onPressed: () => Navigator.pop(context, tempSelected),
++                    child: const Text('אישור'),
++                  ),
++                ),
++              ),
++            ],
++          ),
++        );
++      },
++    );
++  }
+ }
+@@
+-class _AnimatedProductCard extends StatefulWidget {
+-  const _AnimatedProductCard({required this.item, required this.onOrderPressed});
++class _AnimatedProductCard extends StatefulWidget {
++  const _AnimatedProductCard({
++    required this.item,
++    required this.quantity,
++    required this.onIncrease,
++    required this.onDecrease,
++    required this.onPickQuantity,
++  });
+ 
+   final Map<String, String> item;
+-  final VoidCallback onOrderPressed;
++  final int quantity;
++  final VoidCallback onIncrease;
++  final VoidCallback onDecrease;
++  final VoidCallback onPickQuantity;
+@@
+                   const SizedBox(width: 6),
+                   Flexible(
+-                    child: FilledButton.tonal(
+-                      onPressed: widget.onOrderPressed,
+-                      style: FilledButton.styleFrom(
+-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+-                        visualDensity: VisualDensity.compact,
+-                      ),
+-                      child: const FittedBox(
+-                        fit: BoxFit.scaleDown,
+-                        child: Text(
+-                          'להזמנה',
+-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+-                        ),
++                    child: Container(
++                      decoration: BoxDecoration(
++                        color: Colors.white.withOpacity(0.7),
++                        borderRadius: BorderRadius.circular(20),
++                        border: Border.all(color: Colors.orange.shade200),
++                      ),
++                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
++                      child: Row(
++                        children: [
++                          IconButton(
++                            onPressed: widget.onDecrease,
++                            icon: const Icon(Icons.remove, size: 16),
++                            visualDensity: VisualDensity.compact,
++                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
++                          ),
++                          Expanded(
++                            child: GestureDetector(
++                              onTap: widget.onPickQuantity,
++                              child: Container(
++                                alignment: Alignment.center,
++                                padding: const EdgeInsets.symmetric(vertical: 2),
++                                child: Text(
++                                  '${widget.quantity}',
++                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
++                                ),
++                              ),
++                            ),
++                          ),
++                          IconButton(
++                            onPressed: widget.onIncrease,
++                            icon: const Icon(Icons.add, size: 16),
++                            visualDensity: VisualDensity.compact,
++                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
++                          ),
++                        ],
+                       ),
+                     ),
+                   ),
+*** End Patch

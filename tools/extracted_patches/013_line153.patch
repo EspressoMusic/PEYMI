@@ -1,0 +1,38 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ import 'package:flutter/material.dart';
+ import 'package:google_fonts/google_fonts.dart';
+ import 'dart:math';
++import 'dart:ui' show lerpDouble;
+@@
+ class _CatalogPageState extends State<_CatalogPage> {
+   bool _showDrinks = false;
++  bool _showConfetti = false;
+   int _confettiToken = 0;
+@@
+                       child: _AnimatedProductCard(
+                         item: item,
+                         onOrderPressed: () {
+-                          setState(() => _confettiToken++);
++                          setState(() {
++                            _showConfetti = true;
++                            _confettiToken++;
++                          });
+                         },
+                       ),
+@@
+-        if (_confettiToken > 0)
++        if (_showConfetti)
+           IgnorePointer(
+             child: _EmojiConfettiOverlay(
+               key: ValueKey<int>(_confettiToken),
+-              onFinished: () {},
++              onFinished: () {
++                if (mounted) {
++                  setState(() => _showConfetti = false);
++                }
++              },
+             ),
+           ),
+*** End Patch

@@ -1,0 +1,15 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+                 onPressed: () async {
+                   final uri = Uri.parse('https://wa.me/972${_contactPhone.substring(1)}');
+                   if (await canLaunchUrl(uri)) {
+                     await launchUrl(uri, mode: LaunchMode.externalApplication);
+                   } else if (mounted) {
+-                    ScaffoldMessenger.of(context).showSnackBar(
++                    ScaffoldMessenger.of(this.context).showSnackBar(
+                       const SnackBar(content: Text('לא ניתן לפתוח וואטסאפ כרגע')),
+                     );
+                   }
+                 },
+*** End Patch

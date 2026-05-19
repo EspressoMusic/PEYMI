@@ -1,0 +1,11 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+               'id': '#${1100 + _pastOrders.length + 1}',
+               'date': _formatDate(DateTime.now()),
+-              'total': '${total}₪',
++              'total': '$total₪',
+               'status': 'הושלמה',
+               'progress': 1.0,
+             });
+*** End Patch

@@ -1,0 +1,218 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ class _DealsPage extends StatelessWidget {
+   const _DealsPage({required this.deals});
+ 
+   final List<Map<String, String>> deals;
+ 
+   @override
+   Widget build(BuildContext context) {
+-    return ListView(
+-      padding: const EdgeInsets.all(12),
+-      children: [
+-        const Text(
+-          'מבצעים ודילים',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        const SizedBox(height: 12),
+-        ...deals.map(
+-          (deal) => Card(
+-            margin: const EdgeInsets.symmetric(vertical: 6),
+-            color: Colors.orange.shade50,
+-            child: ListTile(
+-              leading: const Icon(Icons.discount, color: Colors.deepOrange),
+-              title: Text(deal['title']!),
+-              subtitle: Text('${deal['desc']!}\nתוקף: ${deal['valid']!}'),
+-              isThreeLine: true,
+-            ),
+-          ),
+-        ),
+-      ],
++    return Column(
++      children: [
++        Expanded(
++          child: GridView.builder(
++            padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
++            itemCount: deals.length,
++            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++              crossAxisCount: 2,
++              crossAxisSpacing: 10,
++              mainAxisSpacing: 10,
++              childAspectRatio: 0.86,
++            ),
++            itemBuilder: (context, index) {
++              final deal = deals[index];
++              return Container(
++                decoration: BoxDecoration(
++                  color: const Color(0xFFF8F4EC),
++                  borderRadius: BorderRadius.circular(20),
++                  boxShadow: const [
++                    BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4)),
++                  ],
++                ),
++                padding: const EdgeInsets.all(10),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Container(
++                      decoration: BoxDecoration(
++                        color: const Color(0xFFF1E9D8),
++                        borderRadius: BorderRadius.circular(14),
++                      ),
++                      padding: const EdgeInsets.all(8),
++                      child: const Icon(Icons.discount, color: Colors.deepOrange, size: 24),
++                    ),
++                    const SizedBox(height: 8),
++                    Text(
++                      deal['title']!,
++                      maxLines: 2,
++                      overflow: TextOverflow.ellipsis,
++                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
++                    ),
++                    const SizedBox(height: 4),
++                    Text(
++                      deal['desc']!,
++                      maxLines: 2,
++                      overflow: TextOverflow.ellipsis,
++                      style: TextStyle(fontSize: 13, color: Colors.brown.shade500),
++                    ),
++                    const Spacer(),
++                    Text(
++                      'תוקף: ${deal['valid']!}',
++                      maxLines: 1,
++                      overflow: TextOverflow.ellipsis,
++                      style: TextStyle(fontSize: 12, color: Colors.brown.shade400),
++                    ),
++                  ],
++                ),
++              );
++            },
++          ),
++        ),
++        Padding(
++          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
++          child: SizedBox(
++            width: double.infinity,
++            child: FilledButton.icon(
++              onPressed: () {
++                ScaffoldMessenger.of(context).showSnackBar(
++                  const SnackBar(content: Text('ההטבה הופעלה בהצלחה!')),
++                );
++              },
++              icon: const Icon(Icons.card_giftcard),
++              label: const Text('קבל הטבה'),
++            ),
++          ),
++        ),
++      ],
+     );
+   }
+ }
+@@
+ class _SettingsHelpPage extends StatelessWidget {
+   const _SettingsHelpPage();
+ 
+   @override
+   Widget build(BuildContext context) {
+-    return ListView(
+-      padding: const EdgeInsets.all(12),
+-      children: const [
+-        Text(
+-          'הגדרות',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        SizedBox(height: 10),
+-        Card(
+-          elevation: 8,
+-          child: ListTile(
+-            leading: Icon(Icons.phone),
+-            title: Text('צור קשר'),
+-            subtitle: Text('דברו איתנו בטלפון או במייל'),
+-          ),
+-        ),
+-        Card(
+-          elevation: 8,
+-          child: ListTile(
+-            leading: Icon(Icons.campaign),
+-            title: Text('המליצו עלינו'),
+-            subtitle: Text('שתפו חברים וקבלו הטבה'),
+-          ),
+-        ),
+-        Card(
+-          elevation: 8,
+-          child: ListTile(
+-            leading: Icon(Icons.accessible),
+-            title: Text('נגישות'),
+-            subtitle: Text('התאמות נגישות ושירות מותאם'),
+-          ),
+-        ),
+-        Card(
+-          elevation: 8,
+-          child: ListTile(
+-            leading: Icon(Icons.quiz),
+-            title: Text('שאלות נפוצות'),
+-            subtitle: Text('תשובות מהירות לשאלות נפוצות'),
+-          ),
+-        ),
+-      ],
++    const tiles = [
++      {'title': 'צור קשר', 'subtitle': 'דברו איתנו בטלפון או במייל', 'icon': Icons.phone},
++      {'title': 'המליצו עלינו', 'subtitle': 'שתפו חברים וקבלו הטבה', 'icon': Icons.campaign},
++      {'title': 'נגישות', 'subtitle': 'התאמות נגישות ושירות מותאם', 'icon': Icons.accessible},
++      {'title': 'שאלות נפוצות', 'subtitle': 'תשובות מהירות לשאלות נפוצות', 'icon': Icons.quiz},
++    ];
++
++    return GridView.builder(
++      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
++      itemCount: tiles.length,
++      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++        crossAxisCount: 2,
++        crossAxisSpacing: 10,
++        mainAxisSpacing: 10,
++        childAspectRatio: 0.92,
++      ),
++      itemBuilder: (context, index) {
++        final tile = tiles[index];
++        return Container(
++          decoration: BoxDecoration(
++            color: const Color(0xFFF8F4EC),
++            borderRadius: BorderRadius.circular(20),
++            boxShadow: const [
++              BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4)),
++            ],
++          ),
++          padding: const EdgeInsets.all(10),
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Container(
++                decoration: BoxDecoration(
++                  color: const Color(0xFFF1E9D8),
++                  borderRadius: BorderRadius.circular(14),
++                ),
++                padding: const EdgeInsets.all(8),
++                child: Icon(tile['icon'] as IconData, color: Colors.deepOrange, size: 24),
++              ),
++              const SizedBox(height: 8),
++              Text(
++                tile['title'] as String,
++                maxLines: 1,
++                overflow: TextOverflow.ellipsis,
++                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
++              ),
++              const SizedBox(height: 4),
++              Text(
++                tile['subtitle'] as String,
++                maxLines: 3,
++                overflow: TextOverflow.ellipsis,
++                style: TextStyle(fontSize: 13, color: Colors.brown.shade500),
++              ),
++            ],
++          ),
++        );
++      },
+     );
+   }
+ }
+*** End Patch

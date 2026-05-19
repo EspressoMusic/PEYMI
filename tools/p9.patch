@@ -1,0 +1,9 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-    const String accessibilityEmail = 'accessibility@bakery-home.co.il';
++    const String accessibilityEmail = 'shilohdhd1@gmail.com';
+@@
+-                              Text('טלפון: $_contactPhone'),
+                               Text('אימייל: $accessibilityEmail'),
+*** End Patch

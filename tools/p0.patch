@@ -1,0 +1,178 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+   Future<void> _openFaqPanel() async {
+@@
+     );
+   }
+ 
++  Future<void> _openAccessibilityPanel() async {
++    const String accessibilityEmail = 'accessibility@bakery-home.co.il';
++    const String lastUpdated = '29/04/2026';
++    const sections = [
++      {
++        'title': 'מחויבות לנגישות',
++        'items': [
++          'אנו פועלים לקדם שוויון זכויות ושקיפות כלפי כלל הלקוחות, כולל אנשים עם מוגבלות.',
++          'האפליקציה מותאמת לשימוש בעברית ובכיוון קריאה מימין לשמאל (RTL).',
++          'הטקסטים באפליקציה מוצגים בגודל קריא ובמשקלים מודגשים לשיפור נוחות הקריאה.',
++        ],
++      },
++      {
++        'title': 'התאמות נגישות באפליקציה',
++        'items': [
++          'מבנה ניווט עקבי: סרגל תחתון קבוע עם 4 אזורי תוכן ברורים.',
++          'כפתורי פעולה גדולים יחסית ורווחים מספקים בין רכיבי ממשק מרכזיים.',
++          'ניגודיות צבעים משופרת באייקון פעיל, כותרות וכפתורי פעולה.',
++          'התראות חיווי לפעולות משמעותיות (כמו אישור הזמנה) כדי לחזק משוב למשתמש.',
++        ],
++      },
++      {
++        'title': 'סיוע ושירות נגיש',
++        'items': [
++          'ניתן לפנות דרך וואטסאפ או דרך טופס פנייה בתוך האפליקציה.',
++          'בקשות בנושא נגישות מטופלות בעדיפות, לרבות בקשות להתאמות נוספות.',
++          'אם נתקלתם בקושי בשימוש - נשמח לקבל פירוט ולשפר במהירות האפשרית.',
++        ],
++      },
++      {
++        'title': 'תאימות ותחזוקה שוטפת',
++        'items': [
++          'האפליקציה נבדקת באופן שוטף כחלק מתהליך תחזוקה ושיפור.',
++          'ייתכן שחלקים מסוימים עדיין בתהליך התאמה; אנו מתחייבים לתקן פערים שידווחו.',
++        ],
++      },
++    ];
++
++    await showModalBottomSheet<void>(
++      context: context,
++      isScrollControlled: true,
++      showDragHandle: true,
++      builder: (context) {
++        return Directionality(
++          textDirection: TextDirection.rtl,
++          child: FractionallySizedBox(
++            heightFactor: 0.9,
++            child: Padding(
++              padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.stretch,
++                children: [
++                  const Text(
++                    'נגישות ותקנון נגישות',
++                    textAlign: TextAlign.center,
++                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
++                  ),
++                  const SizedBox(height: 6),
++                  Text(
++                    'אנו מחויבים לספק חוויית שימוש נגישה ושוויונית לכל לקוחותינו.',
++                    textAlign: TextAlign.center,
++                    style: TextStyle(color: Colors.brown.shade600, height: 1.4),
++                  ),
++                  const SizedBox(height: 12),
++                  Expanded(
++                    child: ListView(
++                      children: [
++                        ...sections.map((section) {
++                          final items = (section['items'] as List<String>);
++                          return Container(
++                            margin: const EdgeInsets.only(bottom: 10),
++                            padding: const EdgeInsets.all(12),
++                            decoration: BoxDecoration(
++                              color: const Color(0xFFF8F4EC),
++                              borderRadius: BorderRadius.circular(16),
++                              boxShadow: const [
++                                BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
++                              ],
++                            ),
++                            child: Column(
++                              crossAxisAlignment: CrossAxisAlignment.start,
++                              children: [
++                                Text(
++                                  section['title'] as String,
++                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
++                                ),
++                                const SizedBox(height: 8),
++                                ...items.map(
++                                  (item) => Padding(
++                                    padding: const EdgeInsets.only(bottom: 6),
++                                    child: Text(
++                                      '• $item',
++                                      style: TextStyle(
++                                        color: Colors.brown.shade700,
++                                        height: 1.35,
++                                      ),
++                                    ),
++                                  ),
++                                ),
++                              ],
++                            ),
++                          );
++                        }),
++                        Container(
++                          padding: const EdgeInsets.all(12),
++                          decoration: BoxDecoration(
++                            color: const Color(0xFFEFE3CF),
++                            borderRadius: BorderRadius.circular(16),
++                            border: Border.all(color: Colors.brown.shade200),
++                          ),
++                          child: Column(
++                            crossAxisAlignment: CrossAxisAlignment.start,
++                            children: [
++                              const Row(
++                                children: [
++                                  Icon(Icons.support_agent, color: Color(0xFF4E342E)),
++                                  SizedBox(width: 8),
++                                  Text(
++                                    'רכז/ת נגישות',
++                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
++                                  ),
++                                ],
++                              ),
++                              const SizedBox(height: 8),
++                              Text('טלפון: $_contactPhone'),
++                              Text('אימייל: $accessibilityEmail'),
++                              const SizedBox(height: 6),
++                              Text(
++                                'זמני מענה: ימים א׳-ה׳, 09:00-17:00',
++                                style: TextStyle(color: Colors.brown.shade700),
++                              ),
++                              const SizedBox(height: 8),
++                              const Text(
++                                'אם מצאתם בעיית נגישות באפליקציה, אנא צרפו תיאור קצר כדי שנוכל לטפל במהירות.',
++                                style: TextStyle(fontWeight: FontWeight.w700),
++                              ),
++                            ],
++                          ),
++                        ),
++                        const SizedBox(height: 10),
++                        Text(
++                          'עדכון אחרון לתקנון: $lastUpdated',
++                          textAlign: TextAlign.center,
++                          style: TextStyle(color: Colors.brown.shade500, fontSize: 13),
++                        ),
++                      ],
++                    ),
++                  ),
++                ],
++              ),
++            ),
++          ),
++        );
++      },
++    );
++  }
++
+   @override
+   Widget build(BuildContext context) {
+@@
+             if (tile['title'] == 'צור קשר') {
+               _openContactOptions();
+             } else if (tile['title'] == 'המליצו עלינו') {
+               _openReviewsPanel();
++            } else if (tile['title'] == 'נגישות') {
++              _openAccessibilityPanel();
+             } else if (tile['title'] == 'שאלות נפוצות') {
+               _openFaqPanel();
+             }
+*** End Patch

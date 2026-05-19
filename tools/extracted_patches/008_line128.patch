@@ -1,0 +1,107 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-class _CatalogPage extends StatelessWidget {
++class _CatalogPage extends StatefulWidget {
+   const _CatalogPage({required this.products});
+ 
+   final List<Map<String, String>> products;
+ 
++  @override
++  State<_CatalogPage> createState() => _CatalogPageState();
++}
++
++class _CatalogPageState extends State<_CatalogPage> {
++  bool _showDrinks = false;
++
++  final List<Map<String, String>> _drinks = const [
++    {'name': 'קפה', 'price': '12₪', 'category': 'שתייה חמה', 'subtitle': 'אספרסו או הפוך', 'emoji': '☕'},
++    {'name': 'תה נענע', 'price': '10₪', 'category': 'שתייה חמה', 'subtitle': 'חליטה טרייה', 'emoji': '🍵'},
++    {'name': 'סודה לימון', 'price': '11₪', 'category': 'שתייה קרה', 'subtitle': 'מרענן עם לימון', 'emoji': '🥤'},
++    {'name': 'שייק הבית', 'price': '19₪', 'category': 'שייקים', 'subtitle': 'פירות העונה', 'emoji': '🧋'},
++  ];
++
+   @override
+   Widget build(BuildContext context) {
+-    return GridView.builder(
+-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
+-      itemCount: products.length,
+-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+-        crossAxisCount: 2,
+-        crossAxisSpacing: 10,
+-        mainAxisSpacing: 10,
+-        childAspectRatio: 0.62,
+-      ),
+-      itemBuilder: (context, index) {
+-        final item = products[index];
+-        return TweenAnimationBuilder<double>(
+-          tween: Tween(begin: 0, end: 1),
+-          duration: Duration(milliseconds: 260 + (index * 80)),
+-          curve: Curves.easeOutCubic,
+-          builder: (context, value, child) {
+-            return Opacity(
+-              opacity: value,
+-              child: Transform.translate(
+-                offset: Offset(0, (1 - value) * 16),
+-                child: child,
+-              ),
+-            );
+-          },
+-          child: _AnimatedProductCard(item: item),
++    final items = _showDrinks ? _drinks : widget.products;
++    return Column(
++      children: [
++        Padding(
++          padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
++          child: SegmentedButton<bool>(
++            segments: const [
++              ButtonSegment<bool>(value: false, icon: Icon(Icons.bakery_dining), label: Text('מאפים')),
++              ButtonSegment<bool>(value: true, icon: Icon(Icons.local_cafe), label: Text('שתייה')),
++            ],
++            selected: {_showDrinks},
++            onSelectionChanged: (value) {
++              setState(() => _showDrinks = value.first);
++            },
++          ),
+         );
+-      },
++        Expanded(
++          child: AnimatedSwitcher(
++            duration: const Duration(milliseconds: 280),
++            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
++            child: GridView.builder(
++              key: ValueKey<bool>(_showDrinks),
++              padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
++              itemCount: items.length,
++              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++                crossAxisCount: 2,
++                crossAxisSpacing: 10,
++                mainAxisSpacing: 10,
++                childAspectRatio: 0.62,
++              ),
++              itemBuilder: (context, index) {
++                final item = items[index];
++                return TweenAnimationBuilder<double>(
++                  tween: Tween(begin: 0, end: 1),
++                  duration: Duration(milliseconds: 260 + (index * 80)),
++                  curve: Curves.easeOutCubic,
++                  builder: (context, value, child) {
++                    return Opacity(
++                      opacity: value,
++                      child: Transform.translate(
++                        offset: Offset(0, (1 - value) * 16),
++                        child: child,
++                      ),
++                    );
++                  },
++                  child: _AnimatedProductCard(item: item),
++                );
++              },
++            ),
++          ),
++        ),
++      ],
+     );
+   }
+ }
+*** End Patch

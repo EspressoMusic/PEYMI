@@ -1,0 +1,6 @@
+      home: const BakeryHomePage(),
+    );
+  }
+}
+
+class BakeryHomePage extends StatefulWidget {

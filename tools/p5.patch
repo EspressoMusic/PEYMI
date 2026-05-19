@@ -1,0 +1,58 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+ import 'package:flutter/material.dart';
++import 'package:audioplayers/audioplayers.dart';
+ import 'package:url_launcher/url_launcher.dart';
+ import 'dart:math';
+@@
+ class _BakeryHomePageState extends State<BakeryHomePage> {
+   int _selectedIndex = 3;
+   final Map<String, int> _cartQuantities = {};
++  final AudioPlayer _cartSoundPlayer = AudioPlayer();
+@@
+   @override
++  void dispose() {
++    _cartSoundPlayer.dispose();
++    super.dispose();
++  }
++
++  @override
+   Widget build(BuildContext context) {
+@@
+         onIncrease: (name) {
+           final current = _cartQuantities[name] ?? 0;
+           if (current >= 10) return;
+-          setState(() => _cartQuantities[name] = current + 1);
++          setState(() => _setCartQuantity(name, current + 1));
+         },
+@@
+         onSetQuantity: (name, quantity) {
+           setState(() {
+-            _cartQuantities[name] = quantity.clamp(0, 10);
++            _setCartQuantity(name, quantity);
+           });
+         },
+       ),
+@@
+   int _parsePrice(String value) {
+     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+     return int.tryParse(digits) ?? 0;
+   }
+ 
++  void _setCartQuantity(String name, int quantity) {
++    final previous = _cartQuantities[name] ?? 0;
++    final next = quantity.clamp(0, 10);
++    _cartQuantities[name] = next;
++    if (next > previous) {
++      _playCartAddSound();
++    }
++  }
++
++  Future<void> _playCartAddSound() async {
++    await _cartSoundPlayer.stop();
++    await _cartSoundPlayer.play(AssetSource('sounds/cart_add.mp3'));
++  }
++
+   String _formatDate(DateTime date) {
+*** End Patch

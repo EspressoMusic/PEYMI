@@ -1,0 +1,278 @@
+*** Begin Patch
+*** Update File: C:\Users\Nirhdhd\bakery_shop_app\lib\main.dart
+@@
+-  final List<Map<String, dynamic>> _pastOrders = [
++  final List<Map<String, dynamic>> _pastOrders = [
+     {
+       'id': '#1042',
+       'date': '24/04/2026',
+       'total': '132₪',
+-      'status': 'נמסר',
+-      'progress': 1.0
++      'status': 'נמסר',
++      'progress': 1.0,
++      'items': [
++        {'name': 'בורקס', 'quantity': '2', 'price': '18₪'},
++        {'name': 'קפה', 'quantity': '1', 'price': '12₪'},
++      ],
+     },
+     {
+       'id': '#1031',
+       'date': '17/04/2026',
+       'total': '96₪',
+       'status': 'נמסר',
+-      'progress': 1.0
++      'progress': 1.0,
++      'items': [
++        {'name': 'פיצה אישית', 'quantity': '2', 'price': '29₪'},
++      ],
+     },
+     {
+       'id': '#1018',
+       'date': '08/04/2026',
+       'total': '210₪',
+       'status': 'נמסר',
+-      'progress': 1.0
++      'progress': 1.0,
++      'items': [
++        {'name': 'עוגה אישית', 'quantity': '3', 'price': '24₪'},
++        {'name': 'שייק הבית', 'quantity': '2', 'price': '19₪'},
++      ],
+     },
+   ];
+@@
+           setState(() {
++            final purchasedItems = cartItems
++                .map(
++                  (item) => {
++                    'name': item['name']!,
++                    'quantity': item['quantity']!,
++                    'price': item['price']!,
++                  },
++                )
++                .toList();
+             _pastOrders.insert(0, {
+               'id': '#${1100 + _pastOrders.length + 1}',
+               'date': _formatDate(DateTime.now()),
+               'total': '$total₪',
+               'status': 'הושלמה',
+               'progress': 1.0,
++              'items': purchasedItems,
+             });
+             _cartQuantities.clear();
+           });
+@@
+-class _OrdersPage extends StatelessWidget {
++class _OrdersPage extends StatefulWidget {
+   const _OrdersPage({
+     required this.orders,
+     required this.cartItems,
+@@
+-  final List<Map<String, dynamic>> orders;
+-  final List<Map<String, String>> cartItems;
+-  final void Function(String name) onDecrease;
+-  final void Function(String name) onIncrease;
+-  final VoidCallback onConfirmOrder;
++  final List<Map<String, dynamic>> orders;
++  final List<Map<String, String>> cartItems;
++  final void Function(String name) onDecrease;
++  final void Function(String name) onIncrease;
++  final VoidCallback onConfirmOrder;
++
++  @override
++  State<_OrdersPage> createState() => _OrdersPageState();
++}
++
++class _OrdersPageState extends State<_OrdersPage> {
++  final Set<String> _expandedOrderIds = {};
+ 
+   @override
+   Widget build(BuildContext context) {
+     return ListView(
+       padding: const EdgeInsets.all(12),
+       children: [
+-        const Text(
+-          'הזמנות בתהליך',
+-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+-        ),
+-        const SizedBox(height: 8),
+-        if (cartItems.isEmpty)
+-          const Card(
+-            child: ListTile(
+-              leading: Icon(Icons.hourglass_empty),
+-              title: Text('אין הזמנות בתהליך כרגע'),
+-              subtitle: Text('כשתוסיף מוצרים לסל הם יופיעו כאן'),
+-            ),
+-          ),
+-        ...cartItems.map(
++        if (widget.cartItems.isNotEmpty) ...[
++          const Text(
++            'הזמנות בתהליך',
++            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++          ),
++          const SizedBox(height: 8),
++        ],
++        ...widget.cartItems.map(
+           (item) => Card(
+             margin: const EdgeInsets.symmetric(vertical: 6),
+             child: ListTile(
+               leading: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 24)),
+               title: Text(item['name']!),
+               subtitle: Text('כמות: ${item['quantity']} | מחיר: ${item['price']}'),
+               trailing: SizedBox(
+                 width: 106,
+                 child: Row(
+                   children: [
+                     InkWell(
+-                      onTap: () => onDecrease(item['name']!),
++                      onTap: () => widget.onDecrease(item['name']!),
+                       borderRadius: BorderRadius.circular(12),
+                       child: const SizedBox(
+                         width: 24,
+@@
+                     ),
+                     InkWell(
+-                      onTap: () => onIncrease(item['name']!),
++                      onTap: () => widget.onIncrease(item['name']!),
+                       borderRadius: BorderRadius.circular(12),
+                       child: const SizedBox(
+                         width: 24,
+@@
+           ),
+         ),
+-        if (cartItems.isNotEmpty) ...[
++        if (widget.cartItems.isNotEmpty) ...[
+           const SizedBox(height: 10),
+           SizedBox(
+             width: double.infinity,
+             child: FilledButton.icon(
+-              onPressed: onConfirmOrder,
++              onPressed: widget.onConfirmOrder,
+               icon: const Icon(Icons.check_circle),
+               label: const Text('אישור לביצוע ההזמנה'),
+             ),
+           ),
++          const SizedBox(height: 16),
+         ],
+-        const SizedBox(height: 16),
+         const Text(
+           'הזמנות מהעבר',
+           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+         ),
+         const SizedBox(height: 8),
+-        if (orders.isEmpty)
++        if (widget.orders.isEmpty)
+           const Card(
+             child: ListTile(
+               leading: Icon(Icons.history_toggle_off),
+@@
+               subtitle: Text('לאחר סיום הזמנה היא תופיע כאן'),
+             ),
+           ),
+-        ...orders.map(
+-          (order) => Card(
+-            margin: const EdgeInsets.symmetric(vertical: 6),
+-            child: Padding(
+-              padding: const EdgeInsets.all(12),
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Row(
+-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-                    children: [
+-                      Text(order['id'], style: const TextStyle(fontWeight: FontWeight.bold)),
+-                      Text(order['total']),
+-                    ],
+-                  ),
+-                  const SizedBox(height: 4),
+-                  Text('תאריך: ${order['date']}'),
+-                  const SizedBox(height: 4),
+-                  Text('סטטוס: ${order['status']}'),
+-                ],
+-              ),
+-            ),
+-          ),
+-        ),
++        if (widget.orders.isNotEmpty)
++          GridView.builder(
++            itemCount: widget.orders.length,
++            shrinkWrap: true,
++            physics: const NeverScrollableScrollPhysics(),
++            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
++              crossAxisCount: 2,
++              crossAxisSpacing: 10,
++              mainAxisSpacing: 10,
++              childAspectRatio: 0.95,
++            ),
++            itemBuilder: (context, index) {
++              final order = widget.orders[index];
++              final orderId = order['id'] as String;
++              final isExpanded = _expandedOrderIds.contains(orderId);
++              final items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
++              return InkWell(
++                borderRadius: BorderRadius.circular(20),
++                onTap: () {
++                  setState(() {
++                    if (isExpanded) {
++                      _expandedOrderIds.remove(orderId);
++                    } else {
++                      _expandedOrderIds.add(orderId);
++                    }
++                  });
++                },
++                child: AnimatedContainer(
++                  duration: const Duration(milliseconds: 220),
++                  padding: const EdgeInsets.all(10),
++                  decoration: BoxDecoration(
++                    color: const Color(0xFFF8F4EC),
++                    borderRadius: BorderRadius.circular(20),
++                    boxShadow: const [
++                      BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4)),
++                    ],
++                  ),
++                  child: Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: [
++                      Text(orderId, style: const TextStyle(fontWeight: FontWeight.w900)),
++                      const SizedBox(height: 4),
++                      Text(
++                        '${order['total']}',
++                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
++                      ),
++                      const SizedBox(height: 6),
++                      Text(
++                        isExpanded ? 'הקש לסגירה' : 'הקש להרחבה',
++                        style: TextStyle(fontSize: 12, color: Colors.brown.shade400),
++                      ),
++                      if (isExpanded) ...[
++                        const SizedBox(height: 6),
++                        Text('סטטוס: ${order['status']}', maxLines: 1, overflow: TextOverflow.ellipsis),
++                        Text('תאריך: ${order['date']}', maxLines: 1, overflow: TextOverflow.ellipsis),
++                        const SizedBox(height: 4),
++                        const Text('מוצרים:', style: TextStyle(fontWeight: FontWeight.w800)),
++                        Expanded(
++                          child: ListView(
++                            padding: EdgeInsets.zero,
++                            children: items
++                                .map(
++                                  (it) => Text(
++                                    '• ${it['name']} x${it['quantity']}',
++                                    maxLines: 1,
++                                    overflow: TextOverflow.ellipsis,
++                                  ),
++                                )
++                                .toList(),
++                          ),
++                        ),
++                      ],
++                    ],
++                  ),
++                ),
++              );
++            },
++          ),
+       ],
+     );
+   }
+ }
+*** End Patch
