@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="utf-8" />
+  <title>Peymii</title>
+  <script>
+    sessionStorage.setItem("peymii_path", location.pathname + location.search);
+    var parts = location.pathname.split("/").filter(Boolean);
+    if (parts.length > 1) {
+      location.replace("/" + parts[0] + "/");
+    } else {
+      location.replace("./");
+    }
+  </script>
+</head>
+<body></body>
+</html>

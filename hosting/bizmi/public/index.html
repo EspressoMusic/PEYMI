@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bizmi — חנות</title>
+  <meta name="description" content="הורידו את אפליקציית Bizmi לצפייה בחנות וקביעת תורים." />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/config.js"></script>
+</head>
+<body>
+  <main class="card" id="app">
+    <p class="badge">Bizmi</p>
+    <h1 id="store-name">טוען חנות…</h1>
+    <p class="lead" id="store-message">
+      הורידו את האפליקציה כדי לצפות בחנות ולקבוע תורים.
+    </p>
+    <p class="device-hint" id="device-hint"></p>
+    <p class="redirect-status" id="redirect-status" hidden></p>
+    <p class="slug" id="store-slug" hidden></p>
+    <div class="actions">
+      <a class="btn btn-primary" id="download-primary" href="#">הורדת האפליקציה</a>
+      <a class="btn" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>App Store</a>
+      <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
+    </div>
+    <p class="error" id="error" hidden></p>
+  </main>
+  <script src="/landing.js"></script>
+</body>
+</html>

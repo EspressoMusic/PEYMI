@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peymii — חנות</title>
+  <meta name="description" content="הורידו את אפליקציית Peymii לצפייה בחנות וקביעת תורים." />
+  <meta name="theme-color" content="#4a2c1a" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🥐%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <main class="card" id="app">
+    <header class="brand">
+      <span class="brand-icon" aria-hidden="true">🥐</span>
+      <div>
+        <p class="badge">Peymii</p>
+        <p class="brand-tagline" id="brand-tagline">חנות ותורים באפליקציה</p>
+      </div>
+    </header>
+
+    <div class="store-block">
+      <div class="loader" id="loader" aria-hidden="true"></div>
+      <h1 id="store-name">טוען חנות…</h1>
+      <p class="lead" id="store-message">
+        מזהים את המכשיר שלכם ומפנים להורדת האפליקציה המתאימה.
+      </p>
+    </div>
+
+    <p class="device-hint" id="device-hint"></p>
+    <p class="redirect-status" id="redirect-status" hidden>
+      <span class="pulse-dot"></span>
+      <span id="redirect-text">מעבירים…</span>
+    </p>
+    <p class="slug" id="store-slug" hidden></p>
+
+    <div class="platform-row" id="platform-row" hidden aria-hidden="true">
+      <span class="platform-chip" data-os="android">Android</span>
+      <span class="platform-chip" data-os="ios">iOS</span>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-primary" id="download-primary" href="#">
+        <span class="btn-icon" id="primary-icon">⬇</span>
+        <span id="primary-label">הורדת האפליקציה</span>
+      </a>
+      <a class="btn btn-secondary" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>
+        App Store
+      </a>
+      <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
+    </div>
+
+    <p class="error" id="error" hidden></p>
+    <footer class="footnote">
+      <span id="footnote-domain">bizmi.app</span>
+    </footer>
+  </main>
+  <script src="landing.js"></script>
+</body>
+</html>
