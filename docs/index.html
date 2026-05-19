@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Peymii — חנות</title>
-  <meta name="description" content="הורידו את אפליקציית Peymii לצפייה בחנות וקביעת תורים." />
+  <title>Bizmi — חנות</title>
+  <meta name="description" content="Bizmi — גרסת בדיקה. הורידו את האפליקציה לצפייה בחנות." />
   <meta name="theme-color" content="#4a2c1a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🥐%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
@@ -16,40 +16,39 @@
     <header class="brand">
       <span class="brand-icon" aria-hidden="true">🥐</span>
       <div>
-        <p class="badge">Peymii</p>
-        <p class="brand-tagline" id="brand-tagline">חנות ותורים באפליקציה</p>
+        <p class="badge" id="brand-badge">Bizmi</p>
+        <p class="brand-tagline" id="brand-tagline"></p>
       </div>
     </header>
 
+    <p class="testing-banner" id="testing-banner" hidden></p>
+
     <div class="store-block">
       <div class="loader" id="loader" aria-hidden="true"></div>
-      <h1 id="store-name">טוען חנות…</h1>
-      <p class="lead" id="store-message">
-        מזהים את המכשיר שלכם ומפנים להורדת האפליקציה המתאימה.
-      </p>
+      <h1 id="store-name">…</h1>
+      <p class="lead" id="store-message"></p>
     </div>
 
-    <p class="device-hint" id="device-hint"></p>
-    <p class="redirect-status" id="redirect-status" hidden>
-      <span class="pulse-dot"></span>
-      <span id="redirect-text">מעבירים…</span>
-    </p>
     <p class="slug" id="store-slug" hidden></p>
+    <p class="open-app-status" id="open-app-status" hidden></p>
 
-    <div class="platform-row" id="platform-row" hidden aria-hidden="true">
-      <span class="platform-chip" data-os="android">Android</span>
-      <span class="platform-chip" data-os="ios">iOS</span>
+    <div class="actions" id="actions-testing">
+      <a class="btn btn-primary" id="apk-download" href="#" hidden>
+        Download Android Test APK
+      </a>
+      <p class="apk-unavailable" id="apk-unavailable" hidden></p>
+      <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
     </div>
 
-    <div class="actions">
-      <a class="btn btn-primary" id="download-primary" href="#">
-        <span class="btn-icon" id="primary-icon">⬇</span>
-        <span id="primary-label">הורדת האפליקציה</span>
-      </a>
-      <a class="btn btn-secondary" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>
-        App Store
-      </a>
-      <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
+    <div class="actions" id="actions-store" hidden>
+      <p class="device-hint" id="device-hint"></p>
+      <p class="redirect-status" id="redirect-status" hidden>
+        <span class="pulse-dot"></span>
+        <span id="redirect-text"></span>
+      </p>
+      <a class="btn btn-primary" id="download-primary" href="#">הורדה</a>
+      <a class="btn btn-secondary" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>App Store</a>
+      <a class="btn btn-outline" id="open-app-store" href="#">פתיחה באפליקציה</a>
     </div>
 
     <p class="error" id="error" hidden></p>
