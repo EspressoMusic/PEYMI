@@ -155,8 +155,26 @@
     if (loader) loader.classList.add("done");
   }
 
-  function tryOpenAppOnly(slug, platform) {
-    if (!tryOpenAppFirst || !slug) return;
+  /** Deep link the Flutter app handles (bizmi://shiki). Not the GitHub Pages URL. */
+  function customSchemeLink(slug) {
+    return slug ? deepLinkScheme + "://" + slug : deepLinkScheme + "://";
+  }
+
+  function androidAppIntent(slug, httpsFallback) {
+    var tail =
+      "scheme=" +
+      deepLinkScheme +
+      ";package=" +
+      androidPackage +
+      (httpsFallback
+        ? ";S.browser_fallback_url=" + encodeURIComponent(httpsFallback)
+        : "") +
+      ";end";
+    return "intent://" + slug + "#Intent;" + tail;
+  }
+
+  function openInApp(slug, platform) {
+    if (!slug) return;
 
     const status = document.getElementById("open-app-status");
     if (status) {
@@ -164,31 +182,45 @@
       status.textContent = t("openingApp");
     }
 
-    let left = false;
-    const onVis = () => {
-      if (document.hidden) left = true;
-    };
-    document.addEventListener("visibilitychange", onVis);
+    const httpsStore = baseUrl.replace(/\/+$/, "") + "/" + slug;
 
     if (platform === "android") {
-      window.location.href =
-        "intent://" +
-        slug +
-        "#Intent;scheme=" +
-        deepLinkScheme +
-        ";package=" +
-        androidPackage +
-        ";end";
-    } else if (platform === "ios") {
-      window.location.href = deepLinkScheme + "://" + slug;
+      window.location.href = androidAppIntent(
+        slug,
+        testingMode ? "" : httpsStore
+      );
     } else {
-      window.location.href = baseUrl + "/" + slug;
+      window.location.href = customSchemeLink(slug);
     }
 
     setTimeout(() => {
-      document.removeEventListener("visibilitychange", onVis);
-      if (status && !left) status.hidden = true;
-    }, 1500);
+      if (status) status.hidden = true;
+    }, 2000);
+  }
+
+  function wireOpenInAppButton(buttonId, slug, platform) {
+    const el = document.getElementById(buttonId);
+    if (!el) return;
+
+    el.textContent = t("openInApp");
+
+    if (!slug) {
+      el.removeAttribute("href");
+      el.onclick = null;
+      return;
+    }
+
+    el.href = customSchemeLink(slug);
+    el.onclick = function (e) {
+      e.preventDefault();
+      openInApp(slug, platform);
+      return false;
+    };
+  }
+
+  function tryOpenAppOnly(slug, platform) {
+    if (!tryOpenAppFirst || !slug) return;
+    openInApp(slug, platform);
   }
 
   function setupTestingUi(slug, platform) {
@@ -225,9 +257,7 @@
       apkMissing.textContent = t("apkUnavailable");
     }
 
-    const openApp = document.getElementById("open-app");
-    openApp.textContent = t("openInApp");
-    openApp.href = slug ? baseUrl + "/" + slug : baseUrl;
+    wireOpenInAppButton("open-app", slug, platform);
 
     if (slug && (platform === "android" || platform === "ios")) {
       tryOpenAppOnly(slug, platform);
@@ -287,12 +317,10 @@
     const hint = document.getElementById("device-hint");
     const primary = document.getElementById("download-primary");
     const secondary = document.getElementById("download-secondary");
-    const openApp = document.getElementById("open-app-store");
     const status = document.getElementById("redirect-status");
     const redirectText = document.getElementById("redirect-text");
 
-    openApp.textContent = t("openInApp");
-    openApp.href = slug ? baseUrl + "/" + slug : baseUrl;
+    wireOpenInAppButton("open-app-store", slug, platform);
 
     if (platform === "android" && playUrl) {
       hint.textContent = t("deviceAndroid");
