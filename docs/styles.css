@@ -238,11 +238,16 @@ h1 {
   transform: scale(0.98);
 }
 
-.btn-primary {
+.btn-primary,
+.btn-apk {
   background: linear-gradient(135deg, var(--accent) 0%, #5c3822 100%);
   border-color: var(--accent);
   color: #fff;
   box-shadow: 0 8px 20px rgba(74, 44, 26, 0.25);
+}
+
+.btn-apk::before {
+  content: "⬇ ";
 }
 
 .btn-secondary {

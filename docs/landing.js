@@ -247,8 +247,10 @@
       apkBtn.href = apkUrl;
       apkBtn.textContent = t("apkButton");
       apkBtn.hidden = false;
+      apkBtn.setAttribute("download", "bizmi-test.apk");
       apkBtn.target = "_blank";
-      apkBtn.rel = "noopener";
+      apkBtn.rel = "noopener noreferrer";
+      apkBtn.classList.add("btn-apk");
       apkBtn.removeAttribute("aria-disabled");
       apkMissing.hidden = true;
     } else {
