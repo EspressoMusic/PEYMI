@@ -5,7 +5,7 @@ window.PEYMI_CONFIG = {
   supabaseUrl: "https://qruzhluqmmzlcxksftuh.supabase.co",
   supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFydXpobHVxbW16bGN4a3NmdHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNzU3MTUsImV4cCI6MjA5NDc1MTcxNX0.K__lDNCH08kRVBt11jdu1rl5zxaRdTZ46g1jYHL5d1U",
   testingMode: true,
-  apkDownloadUrl: "",
+  apkDownloadUrl: "https://github.com/EspressoMusic/PEYMI/releases/download/v0.1.0-test/bizmi-test.apk",
   playStoreUrl: "",
   appStoreUrl: "",
   androidPackage: "com.example.bakery_shop_app",
