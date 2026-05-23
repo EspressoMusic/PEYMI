@@ -1,7 +1,13 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_bootstrap.dart';
+import '../../core/legal_versions.dart';
 import '../models/appointment_models.dart';
+import '../models/business_payment_settings.dart';
+import '../models/legal_acceptance.dart';
 import '../models/saas_models.dart';
 import '../utils/slug_utils.dart';
 
@@ -76,6 +82,43 @@ class SaasRepository {
     final row = await _db.from('businesses').select().eq('slug', slug).maybeSingle();
     if (row == null) return null;
     return SaasBusiness.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  Future<String> uploadBusinessLogo({
+    required String businessId,
+    required String localPath,
+  }) async {
+    final file = File(localPath);
+    if (!await file.exists()) throw Exception('Image file not found');
+    var ext = p.extension(localPath).toLowerCase();
+    if (ext.isEmpty) ext = '.jpg';
+    if (ext == '.jpeg') ext = '.jpg';
+    final contentType = switch (ext) {
+      '.png' => 'image/png',
+      '.webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    final objectPath = '$businessId/logo${DateTime.now().millisecondsSinceEpoch}$ext';
+    await _db.storage.from('business-logos').upload(
+          objectPath,
+          file,
+          fileOptions: FileOptions(upsert: true, contentType: contentType),
+        );
+    return _db.storage.from('business-logos').getPublicUrl(objectPath);
+  }
+
+  Future<void> updateBusinessLogoUrl({
+    required String businessId,
+    required String logoUrl,
+  }) async {
+    await _db.from('businesses').update({'logo_url': logoUrl}).eq('id', businessId);
+  }
+
+  Future<void> updateBusinessStoreTerms({
+    required String businessId,
+    String? storeTerms,
+  }) async {
+    await _db.from('businesses').update({'store_terms': storeTerms}).eq('id', businessId);
   }
 
   Future<SaasBusiness?> fetchOwnedBusiness() async {
@@ -203,6 +246,76 @@ class SaasRepository {
       final err = res.data is Map ? (res.data as Map)['error']?.toString() : null;
       throw Exception(err ?? 'Update failed');
     }
+  }
+
+  Future<List<SaasBusinessAdminRow>> fetchAllBusinessesForCreator(String password) async {
+    try {
+      final profile = await fetchCurrentProfile(createIfMissing: false);
+      if (profile?.isSuperAdmin == true) {
+        return fetchAllBusinessesForSuperAdmin();
+      }
+    } catch (_) {}
+
+    final res = await _db.functions.invoke(
+      'creator-admin',
+      body: {'password': password, 'action': 'list'},
+    );
+    if (res.status >= 400) {
+      final err = res.data is Map ? (res.data as Map)['error']?.toString() : null;
+      throw Exception(err ?? 'Forbidden');
+    }
+    return _parseCreatorAdminRows(res.data);
+  }
+
+  Future<void> creatorUpdateBusiness({
+    required String password,
+    required String businessId,
+    bool? isActive,
+    String? subscriptionStatus,
+  }) async {
+    try {
+      final profile = await fetchCurrentProfile(createIfMissing: false);
+      if (profile?.isSuperAdmin == true) {
+        await superAdminUpdateBusiness(
+          businessId: businessId,
+          isActive: isActive,
+          subscriptionStatus: subscriptionStatus,
+        );
+        return;
+      }
+    } catch (_) {}
+
+    final res = await _db.functions.invoke(
+      'creator-admin',
+      body: {
+        'password': password,
+        'action': 'update',
+        'business_id': businessId,
+        if (isActive != null) 'is_active': isActive,
+        if (subscriptionStatus != null) 'subscription_status': subscriptionStatus,
+      },
+    );
+    if (res.status >= 400) {
+      final err = res.data is Map ? (res.data as Map)['error']?.toString() : null;
+      throw Exception(err ?? 'Update failed');
+    }
+  }
+
+  List<SaasBusinessAdminRow> _parseCreatorAdminRows(dynamic data) {
+    if (data is! Map) return [];
+    final businesses = data['businesses'] as List? ?? [];
+    return businesses.map((raw) {
+      final map = Map<String, dynamic>.from(raw as Map);
+      final businessMap = Map<String, dynamic>.from(map['business'] as Map);
+      businessMap.remove('profiles');
+      return SaasBusinessAdminRow(
+        business: SaasBusiness.fromJson(businessMap),
+        ownerEmail: map['owner_email'] as String?,
+        productCount: (map['product_count'] as num?)?.toInt() ?? 0,
+        orderCount: (map['order_count'] as num?)?.toInt() ?? 0,
+        appointmentCount: (map['appointment_count'] as num?)?.toInt() ?? 0,
+      );
+    }).toList();
   }
 
   Future<void> createOrder({
@@ -415,8 +528,54 @@ class SaasRepository {
     await _db.from('business_appointment_settings').update(patch).eq('business_id', businessId);
   }
 
+  /// Customer-to-business payment instructions (not Peymiz subscription billing).
+  Future<BusinessPaymentSettings?> fetchPaymentSettings(String businessId) async {
+    final row = await _db
+        .from('business_payment_settings')
+        .select()
+        .eq('business_id', businessId)
+        .maybeSingle();
+    if (row == null) return null;
+    return BusinessPaymentSettings.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  Future<void> upsertPaymentSettings(BusinessPaymentSettings settings) async {
+    await _db.from('business_payment_settings').upsert(settings.toUpsertJson());
+  }
+
   static String _dateOnly(DateTime d) =>
       DateTime(d.year, d.month, d.day).toIso8601String().split('T').first;
+
+  Future<LegalAcceptance?> fetchLegalAcceptance() async {
+    final uid = currentUser?.id;
+    if (uid == null) return null;
+    final row = await _db.from('legal_acceptances').select().eq('user_id', uid).maybeSingle();
+    if (row == null) return null;
+    return LegalAcceptance.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  Future<bool> hasAcceptedCurrentLegal() async {
+    final row = await fetchLegalAcceptance();
+    if (row == null) return false;
+    return row.coversCurrentVersions(
+      termsVersion: LegalVersions.termsVersion,
+      privacyVersion: LegalVersions.privacyVersion,
+    );
+  }
+
+  Future<void> recordLegalAcceptance() async {
+    final uid = currentUser?.id;
+    if (uid == null) throw Exception('Sign in required');
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _db.from('legal_acceptances').upsert({
+      'user_id': uid,
+      'accepted_terms_at': now,
+      'accepted_privacy_at': now,
+      'terms_version': LegalVersions.termsVersion,
+      'privacy_version': LegalVersions.privacyVersion,
+      'updated_at': now,
+    });
+  }
 
   Future<void> sendCustomerMessage({
     required String businessId,

@@ -1,0 +1,47 @@
+Terms of Use — Peymiz (Bizmi)
+Version: pilot-v1 · Last updated: 20 May 2026
+
+PILOT / BETA
+The service is experimental, may change or stop, and may have bugs or downtime. Pilot-ready draft — lawyer review required before full public or paid launch.
+
+1. Agreement
+These Terms govern use of Peymiz. Business owners must also accept the Privacy Policy before creating a business.
+
+2. The service
+Peymiz provides tools for business pages, orders, appointments, and messages. We are a platform, not the seller of each business’s goods/services unless stated otherwise.
+
+3. Pilot limitations
+Features may change; outages may occur; support is best-effort; keep your own backups.
+
+4. Business owner responsibilities
+You are responsible for your content, products, services, customers, orders, appointments, legal compliance, and store terms shown to customers.
+
+5. Acceptable use
+No spam, fraud, illegal activity, abuse, harassment, malware, or unauthorized access. Do not bypass security or phone verification.
+
+6. Suspension and removal
+We may suspend or remove accounts/businesses that violate Terms or pose risk. Unpaid accounts may be suspended when paid plans launch.
+
+7. Intellectual property
+Peymiz software/branding belongs to the operator. You retain your content; you grant us a license to host it to operate the service.
+
+8. Disclaimer
+Service provided “as is” and “as available” during pilot, without warranties to the extent permitted by law.
+
+9. Limitation of liability
+We are not liable for indirect damages, lost profits, missed appointments, or business losses during pilot. Direct liability cap: fees paid in prior 12 months or USD $100, unless law requires more.
+
+10. Billing and refunds
+No paid plans during pilot. Billing/refund terms will be added before paid launch.
+
+11. Privacy
+See Privacy Policy (incorporated by reference).
+
+12. Changes
+We may update Terms; continued use may mean acceptance where allowed.
+
+13. Governing law
+To be specified before full public launch.
+
+14. Contact
+support@peymiz.com · privacy@peymiz.com

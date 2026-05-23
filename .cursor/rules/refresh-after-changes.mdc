@@ -1,15 +1,70 @@
 ---
-description: After code changes to the bakery Flutter app, restart and open it for the user
-globs: lib/**/*
-alwaysApply: false
+
+description: Refresh the Flutter app on device after app code changes
+
+alwaysApply: true
+
 ---
 
-# Refresh app after Flutter changes
 
-When you edit `lib/` or other app code in this project:
 
-1. Run `powershell -ExecutionPolicy Bypass -File tools/refresh_app.ps1` from the project root.
-2. Prefer the connected Android phone (SM S721B). Wait until the script reports the app is on the phone.
-3. Briefly tell the user to check their phone screen.
+# Refresh app after changes
 
-Do this at the end of every implementation turn that changes the running app, unless the user says otherwise.
+
+
+**Do not run a full build after every edit.** That wastes time; subscription does not speed up Gradle.
+
+
+
+## Agent behavior
+
+
+
+- **Never** run `.\tools\refresh_app.ps1`, `flutter run`, hot reload, or hot restart after finishing an update. The user refreshes manually in their own terminal (`r` / `R`).
+
+- **Do not** run refresh at the end of a turn, as a "verification" step, or because Dart/UI files changed.
+
+- Run `.\tools\refresh_app.ps1` (any flag) or `-Force` **only** when the user explicitly asks (e.g. "תרענן", "run refresh", "install on device").
+
+- Exception: native rebuild is still required for `android/`, `ios/`, `pubspec.yaml`, new plugins — but only run install/refresh if the user asked for it in that message.
+
+- After code edits: briefly note that changes are ready; do **not** start a refresh command.
+
+- Do **not** tell the user to run `r` / `R` or refresh in the terminal — they already handle that themselves.
+
+
+
+## User — fastest workflow (seconds)
+
+
+
+1. Once per work session, in a terminal at project root:
+
+   ```powershell
+
+   flutter run -d RZCYA1S0LGL
+
+   ```
+
+   (with `.env` dart-defines if Supabase is needed — same as `refresh_app.ps1`)
+
+2. After each small change: press **`r`** (hot reload) or **`R`** (hot restart) in that terminal — **1–5 seconds**.
+
+3. Or: Flutter extension in Cursor → **Hot Reload on save**.
+
+
+
+## Optional script
+
+
+
+- `.\tools\refresh_app.ps1` — hot restart when a debug session is already running
+
+- `.\tools\refresh_app.ps1 -Reload` — hot reload only
+
+- `.\tools\refresh_app.ps1 -Force` — slow full reinstall (~1–2 min); rare
+
+
+
+`docs/` changes do not need refresh.
+

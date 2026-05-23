@@ -50,12 +50,8 @@ class EmployeeHomePage extends StatelessWidget {
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
         centerTitle: true,
-        title: Text(strings.employeePanel, style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800)),
-        leading: IconButton(
-          tooltip: strings.exit,
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.logout_rounded),
-        ),
+        automaticallyImplyLeading: true,
+        title: const SizedBox.shrink(),
       ),
       body: ListenableBuilder(
         listenable: BusinessStore.instance,

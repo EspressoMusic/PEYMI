@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_theme_mode.dart';
 import '../core/manager_store.dart';
 import 'customer_appointment_tab.dart';
+import 'customer_tab_body.dart';
 
 /// Stable home tab body: catalog or appointments (avoids widget-type swap crashes).
 class HomeCatalogSlot extends StatefulWidget {
@@ -67,9 +68,7 @@ class _HomeCatalogSlotState extends State<HomeCatalogSlot> {
         KeyedSubtree(
           key: const ValueKey('home_catalog_appointments'),
           child: slug.isNotEmpty
-              ? SafeArea(
-                  bottom: false,
-                  minimum: const EdgeInsets.only(top: 20),
+              ? CustomerTabBody(
                   child: CustomerAppointmentTab(slug: slug, embedded: true),
                 )
               : Center(

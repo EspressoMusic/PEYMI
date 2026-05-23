@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_locale.dart';
 import '../../core/app_theme_mode.dart';
+import '../../widgets/legal_acceptance_checkbox.dart';
+import '../../widgets/legal_links_row.dart';
 import '../data/saas_repository.dart';
 import '../../core/manager_store.dart';
 import '../models/saas_models.dart';
@@ -23,8 +26,30 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
   final _address = TextEditingController();
   final _businessType = TextEditingController();
   var _loading = false;
+  var _legalAccepted = false;
+  var _checkingLegal = true;
   String? _error;
   String? _slugError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLegalState();
+  }
+
+  Future<void> _loadLegalState() async {
+    try {
+      final ok = await SaasRepository.instance.hasAcceptedCurrentLegal();
+      if (!mounted) return;
+      setState(() {
+        _legalAccepted = ok;
+        _checkingLegal = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _checkingLegal = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -64,11 +89,16 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
       setState(() => _error = 'Store name and store link are required.');
       return;
     }
+    if (!_legalAccepted) {
+      setState(() => _error = AppLocale.instance.s.legalMustAccept);
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
+      await SaasRepository.instance.recordLegalAcceptance();
       final result = await SaasRepository.instance.createBusinessViaEdge(
         businessName: _name.text.trim(),
         slug: slug,
@@ -107,7 +137,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Store')),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -147,6 +177,21 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
             controller: _businessType,
             decoration: bakeryInputDecoration(context, label: 'Business type', icon: Icons.category_outlined),
           ),
+          const SizedBox(height: 16),
+          const LegalLinksRow(),
+          if (_checkingLegal)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+          else
+            LegalAcceptanceCheckbox(
+              value: _legalAccepted,
+              onChanged: (v) {
+                if (_loading) return;
+                setState(() => _legalAccepted = v ?? false);
+              },
+            ),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: Colors.red)),

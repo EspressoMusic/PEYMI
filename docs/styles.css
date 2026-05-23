@@ -273,6 +273,16 @@ h1 {
   font-size: 0.8rem;
   text-align: center;
   color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.footnote-link {
+  color: var(--accent-soft);
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .error {

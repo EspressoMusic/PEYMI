@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_theme_mode.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
+import '../widgets/customer_payment_instructions.dart';
 
 class PublicProductStoreBody extends StatefulWidget {
   const PublicProductStoreBody({super.key, required this.business, this.bannerMessage});
@@ -63,9 +64,12 @@ class _PublicProductStoreBodyState extends State<PublicProductStoreBody> {
       ],
       totalPrice: _products.isNotEmpty ? _products.first.price : 0,
     );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order submitted')));
-    }
+    if (!mounted) return;
+    await showCustomerPaymentSuccessDialog(
+      context: context,
+      businessId: b.id,
+      isAppointment: false,
+    );
   }
 
   Future<void> _showMessageSheet() async {

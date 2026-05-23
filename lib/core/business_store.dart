@@ -134,6 +134,20 @@ class BusinessStore extends ChangeNotifier {
   int get preparationUnitCount =>
       preparationTotals.values.fold<int>(0, (sum, n) => sum + n);
 
+  /// Orders recorded since start of today or this week (Monday, local calendar).
+  int countOrdersInPeriod({required bool week, DateTime? now}) {
+    final t = now ?? DateTime.now();
+    final start = week ? _startOfWeek(t) : DateTime(t.year, t.month, t.day);
+    final startMs = start.millisecondsSinceEpoch;
+    return _recentOrders.where((o) => o.createdAtMs >= startMs).length;
+  }
+
+  static DateTime _startOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    final monday = date.subtract(Duration(days: weekday - DateTime.monday));
+    return DateTime(monday.year, monday.month, monday.day);
+  }
+
   Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();

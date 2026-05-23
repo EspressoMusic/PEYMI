@@ -8,6 +8,7 @@ docs/config.js
 
 # Miscellaneous
 .flutter_run.pid
+.flutter_hot_cmd
 flutter_*.log
 *.class
 *.log
@@ -41,6 +42,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/build/debug-info/
 /coverage/
 
 # Symbolication related

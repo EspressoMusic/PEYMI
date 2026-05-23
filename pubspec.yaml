@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   audioplayers: ^6.1.0
   url_launcher: ^6.3.2
+  share_plus: ^10.1.4
   app_links: ^7.0.0
   shared_preferences: ^2.5.3
   flutter_stripe: ^11.5.0
@@ -44,6 +45,7 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.1
   supabase_flutter: ^2.9.0
+  video_player: ^2.10.0
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +57,14 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/app_icon.png
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/icon/app_icon.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -69,6 +79,7 @@ flutter:
   assets:
     - assets/images/products/
     - assets/sounds/
+    - assets/legal/
   fonts:
     - family: Varela Round
       fonts:

@@ -74,7 +74,7 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Phone verification')),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

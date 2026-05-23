@@ -93,6 +93,34 @@ class AppThemeController extends ChangeNotifier {
     };
   }
 
+  /// Fallback when [ThemeData.extensions] is missing (e.g. tests).
+  static BakeryDecor decorForMode(AppThemeMode mode) => switch (mode) {
+        AppThemeMode.dark => const BakeryDecor(
+            panelTop: AppColors.darkBluePanel,
+            panelBottom: AppColors.darkBlueSquare,
+            cardFill: AppColors.darkBluePanel,
+            chipFill: AppColors.darkBlueSquare,
+            accent: Colors.white,
+            mutedText: Color(0xB3FFFFFF),
+          ),
+        AppThemeMode.light => const BakeryDecor(
+            panelTop: Colors.white,
+            panelBottom: Colors.white,
+            cardFill: Colors.white,
+            chipFill: Colors.white,
+            accent: Colors.black,
+            mutedText: Color(0xB3000000),
+          ),
+        AppThemeMode.calm => const BakeryDecor(
+            panelTop: Color(0xFFFBF7EF),
+            panelBottom: Color(0xFFF1E5D4),
+            cardFill: Color(0xFFF8F4EC),
+            chipFill: AppColors.darkCreamSquare,
+            accent: AppColors.brown,
+            mutedText: Color(0xFF6D4C41),
+          ),
+      };
+
   ThemeData _calmTheme() {
     const scaffold = Color(0xFFF4F0E8);
     final scheme = ColorScheme.fromSeed(
@@ -110,7 +138,7 @@ class AppThemeController extends ChangeNotifier {
         panelTop: Color(0xFFFBF7EF),
         panelBottom: Color(0xFFF1E5D4),
         cardFill: Color(0xFFF8F4EC),
-        chipFill: Color(0xFFF1E9D8),
+        chipFill: AppColors.darkCreamSquare,
         accent: AppColors.brown,
         mutedText: Color(0xFF6D4C41),
       ),
@@ -118,69 +146,70 @@ class AppThemeController extends ChangeNotifier {
   }
 
   ThemeData _lightTheme() {
+    // Black & white only — high contrast (mirrors dark navy + white pattern).
     const scaffold = Colors.white;
+    const onSurface = Colors.black;
+    const onSurfaceVariant = Color(0xB3000000);
     const scheme = ColorScheme(
       brightness: Brightness.light,
       primary: Colors.black,
       onPrimary: Colors.white,
-      secondary: Color(0xFF212121),
+      secondary: Colors.black,
       onSecondary: Colors.white,
       surface: scaffold,
-      onSurface: Colors.black,
-      onSurfaceVariant: Color(0xFF424242),
-      surfaceContainerHighest: Color(0xFFF5F5F5),
-      outline: Color(0xFFBDBDBD),
-      error: Color(0xFFB00020),
+      onSurface: onSurface,
+      onSurfaceVariant: onSurfaceVariant,
+      surfaceContainerHighest: Colors.white,
+      outline: Colors.black,
+      error: Colors.black,
       onError: Colors.white,
     );
     return _baseTheme(
       scheme,
       scaffold: scaffold,
       decor: const BakeryDecor(
-        panelTop: Color(0xFFFFFFFF),
-        panelBottom: Color(0xFFF0F0F0),
-        cardFill: Color(0xFFFAFAFA),
-        chipFill: Color(0xFFF5F5F5),
+        panelTop: Colors.white,
+        panelBottom: Colors.white,
+        cardFill: Colors.white,
+        chipFill: Colors.white,
         accent: Colors.black,
-        mutedText: Color(0xFF616161),
+        mutedText: onSurfaceVariant,
       ),
-      navIndicator: Colors.black12,
+      navIndicator: Color(0x1F000000),
     );
   }
 
   ThemeData _darkTheme() {
-    // Soft slate — gentle dark, not black; strong text contrast.
-    const scaffold = Color(0xFF2C3340);
-    const surfaceHigh = Color(0xFF383F4D);
-    const accent = Color(0xFF7EC0FF);
-    const onSurface = Color(0xFFF8FAFC);
-    const onSurfaceVariant = Color(0xFFD5DCE8);
+    // Navy blue backgrounds + white text/icons only (high contrast).
+    const scaffold = AppColors.darkBlueBg;
+    const onSurface = Colors.white;
+    const onSurfaceVariant = Color(0xCCFFFFFF);
     const scheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: accent,
-      onPrimary: Color(0xFF1A2330),
-      secondary: Color(0xFFA8D4FF),
-      onSecondary: Color(0xFF1A2330),
+      primary: Colors.white,
+      onPrimary: scaffold,
+      secondary: Colors.white,
+      onSecondary: scaffold,
       surface: scaffold,
       onSurface: onSurface,
       onSurfaceVariant: onSurfaceVariant,
-      surfaceContainerHighest: surfaceHigh,
-      outline: Color(0xFF6B7588),
-      error: Color(0xFFFFB4C0),
-      onError: Color(0xFF2C3340),
+      surfaceContainerHighest: AppColors.darkBlueElevated,
+      outline: Color(0x66FFFFFF),
+      error: Colors.white,
+      onError: scaffold,
     );
     return _baseTheme(
       scheme,
       scaffold: scaffold,
       decor: const BakeryDecor(
-        panelTop: Color(0xFF424C5E),
-        panelBottom: Color(0xFF3A4354),
-        cardFill: Color(0xFF404A5C),
-        chipFill: Color(0xFF4A5568),
-        accent: accent,
-        mutedText: Color(0xFFB8C2D4),
+        panelTop: AppColors.darkBluePanel,
+        panelBottom: AppColors.darkBlueSquare,
+        cardFill: AppColors.darkBluePanel,
+        chipFill: AppColors.darkBlueSquare,
+        accent: Colors.white,
+        mutedText: Color(0xB3FFFFFF),
       ),
-      navIndicator: Color(0x507EC0FF),
+      navIndicator: Color(0x40FFFFFF),
     );
   }
 
@@ -263,7 +292,10 @@ class AppThemeController extends ChangeNotifier {
         border: OutlineInputBorder(borderRadius: borderRadius),
         enabledBorder: OutlineInputBorder(
           borderRadius: borderRadius,
-          borderSide: BorderSide(color: scheme.outline.withValues(alpha: 0.55), width: 1.5),
+          borderSide: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.45) : scheme.outline.withValues(alpha: 0.55),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: borderRadius,
@@ -336,12 +368,51 @@ abstract final class BakeryTheme {
 
   static Color muted(BuildContext context) => bakeryDecor(context).mutedText;
 
-  static Color border(BuildContext context) =>
-      scheme(context).outline.withValues(alpha: scheme(context).brightness == Brightness.dark ? 0.55 : 0.4);
+  static Color border(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => Colors.white.withValues(alpha: 0.45),
+      AppThemeMode.light => Colors.black.withValues(alpha: 0.45),
+      AppThemeMode.calm => scheme(context).outline.withValues(alpha: 0.4),
+    };
+  }
 
-  static Color softSurface(BuildContext context) => bakeryDecor(context).chipFill;
+  /// Area behind action squares and grouped panels — always lighter than [BakerySquarePalette.squareFill].
+  static Color softSurface(BuildContext context) {
+    final decor = bakeryDecor(context);
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBluePanel,
+      AppThemeMode.light => decor.panelTop,
+      AppThemeMode.calm => decor.panelTop,
+    };
+  }
+
+  /// Mid-tone surface between [softSurface] and square tiles.
+  static Color lighterSurface(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBlueElevated,
+      AppThemeMode.light => AppColors.brownSurfaceTint,
+      AppThemeMode.calm => AppColors.brownSurfaceTint,
+    };
+  }
+
+  /// Text fields inside cream panels.
+  static Color inputFill(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBlueElevated,
+      AppThemeMode.light => Colors.white,
+      AppThemeMode.calm => AppColors.brownSurfaceTint,
+    };
+  }
 
   static Color cardSurface(BuildContext context) => bakeryDecor(context).cardFill;
+
+  static Color appointmentTileSurface(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBlueSquare,
+      AppThemeMode.light => AppColors.darkCreamSquare,
+      AppThemeMode.calm => AppColors.darkCreamSquare,
+    };
+  }
 
   static List<Color> panelGradient(BuildContext context) {
     final decor = bakeryDecor(context);
@@ -357,12 +428,12 @@ abstract final class BakeryTheme {
           Color.lerp(AppColors.brown, AppColors.brownLight, 0.35)!,
         ),
       AppThemeMode.light => (
-          const Color(0xFFD9A0A0),
-          const Color(0xFF3D3D3D),
+          const Color(0x4D000000),
+          Colors.black,
         ),
       AppThemeMode.dark => (
-          const Color(0xFF9A7070),
-          const Color(0xFF7EC0FF),
+          AppColors.darkBluePanel,
+          Colors.white,
         ),
     };
     return Color.lerp(low, high, fill)!;
@@ -423,7 +494,7 @@ InputDecoration bakeryInputDecoration(
     labelText: required ? null : label,
     prefixIcon: Icon(icon, color: accent),
     filled: true,
-    fillColor: BakeryTheme.softSurface(context),
+    fillColor: BakeryTheme.inputFill(context),
     labelStyle: BakeryTheme.subtitleText(context, fontWeight: FontWeight.w700),
     floatingLabelStyle: BakeryTheme.text(context, fontWeight: FontWeight.w800),
     border: OutlineInputBorder(borderRadius: radius),

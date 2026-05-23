@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_theme_mode.dart';
 import '../../core/manager_store.dart';
+import '../../core/policy_consent_store.dart';
+import '../../widgets/policy_consent_gate.dart';
 import '../../core/public_store_links.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import '../widgets/owner_appointment_panel.dart';
+import '../widgets/owner_payment_settings_panel.dart';
 import '../widgets/store_mode_selector.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
@@ -41,16 +44,17 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     final products = fresh != null
         ? await SaasRepository.instance.fetchActiveProducts(fresh.id)
         : <SaasProduct>[];
+    if (fresh != null) {
+      await ManagerStore.instance.linkOnlineBusiness(
+        id: fresh.id,
+        slug: fresh.slug,
+        storeMode: fresh.storeMode,
+      );
+      await ManagerStore.instance.applyServerBranding(logoUrl: fresh.logoUrl);
+    }
     if (!mounted) return;
     setState(() {
-      if (fresh != null) {
-        _business = fresh;
-        ManagerStore.instance.linkOnlineBusiness(
-          id: fresh.id,
-          slug: fresh.slug,
-          storeMode: fresh.storeMode,
-        );
-      }
+      if (fresh != null) _business = fresh;
       _products = products;
       _loading = false;
     });
@@ -60,17 +64,19 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   Widget build(BuildContext context) {
     final unlocked = _business.ownerDashboardUnlocked;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_business.businessName),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _load,
-          ),
-        ],
-      ),
-      body: _loading
+    return PolicyConsentGate(
+      audience: PolicyAudience.owner,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const SizedBox.shrink(),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _load,
+            ),
+          ],
+        ),
+        body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
@@ -123,6 +129,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (unlocked) ...[
+                  OwnerPaymentSettingsPanel(business: _business),
+                  const SizedBox(height: 16),
                   if (_business.isAppointmentMode) ...[
                     OwnerAppointmentPanel(business: _business),
                   ] else ...[
@@ -149,6 +157,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 ],
               ],
             ),
+      ),
     );
   }
 }

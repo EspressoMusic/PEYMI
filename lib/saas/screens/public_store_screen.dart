@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/policy_consent_store.dart';
+import '../../widgets/policy_consent_gate.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import 'public_appointment_screen.dart';
@@ -88,28 +90,33 @@ class PublicStoreView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget body;
     if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (message != null && business == null) {
-      return Scaffold(
+      body = const Scaffold(body: Center(child: CircularProgressIndicator()));
+    } else if (message != null && business == null) {
+      body = Scaffold(
         appBar: AppBar(),
         body: Center(child: Text(message!, style: const TextStyle(fontSize: 18))),
       );
+    } else {
+      final b = business!;
+      if (b.isAppointmentMode) {
+        body = PublicAppointmentScreen(
+          key: ValueKey('public-appt-${b.id}-${b.storeMode}'),
+          business: b,
+        );
+      } else {
+        body = Scaffold(
+          key: ValueKey('public-products-${b.id}-${b.storeMode}'),
+          appBar: AppBar(title: const SizedBox.shrink()),
+          body: PublicProductStoreBody(business: b, bannerMessage: message),
+        );
+      }
     }
 
-    final b = business!;
-    if (b.isAppointmentMode) {
-      return PublicAppointmentScreen(
-        key: ValueKey('public-appt-${b.id}-${b.storeMode}'),
-        business: b,
-      );
-    }
-
-    return Scaffold(
-      key: ValueKey('public-products-${b.id}-${b.storeMode}'),
-      appBar: AppBar(title: Text(b.businessName)),
-      body: PublicProductStoreBody(business: b, bannerMessage: message),
+    return PolicyConsentGate(
+      audience: PolicyAudience.customer,
+      child: body,
     );
   }
 }

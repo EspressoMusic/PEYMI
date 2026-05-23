@@ -63,7 +63,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Super Admin')),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: Column(
         children: [
           Padding(

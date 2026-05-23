@@ -7,6 +7,7 @@ import 'locale_translate.dart';
 
 import '../saas/data/saas_repository.dart';
 import 'catalog_data.dart';
+import 'catalog_image_storage.dart';
 import 'demo_store.dart';
 import 'store_announcement.dart';
 import 'supabase/supabase_bootstrap.dart';
@@ -72,6 +73,8 @@ class ManagerStore extends ChangeNotifier {
   static const _linkedSlugKey = 'manager_online_business_slug';
   static const _linkedIdKey = 'manager_online_business_id';
   static const _customerPanelModeKey = 'manager_customer_panel_mode';
+  static const _storeAppImagePathKey = 'manager_store_app_image_path';
+  static const _storeAppLogoUrlKey = 'manager_store_app_logo_url';
 
   final List<CustomerInquiry> _inquiries = [];
   final List<Map<String, dynamic>> _customDeals = [];
@@ -79,6 +82,8 @@ class ManagerStore extends ChangeNotifier {
   String? _linkedBusinessSlug;
   String? _linkedBusinessId;
   String _customerPanelMode = 'products';
+  String _storeAppImagePath = '';
+  String? _storeAppLogoUrl;
 
   /// What customers see in the app menu: catalog or appointment booking.
   String get customerPanelMode => _customerPanelMode;
@@ -91,6 +96,14 @@ class ManagerStore extends ChangeNotifier {
   String? get linkedBusinessSlug => _linkedBusinessSlug;
 
   String? get linkedBusinessId => _linkedBusinessId;
+
+  String get storeAppImagePath => _storeAppImagePath;
+
+  String? get storeAppLogoUrl => _storeAppLogoUrl;
+
+  bool get hasStoreAppBranding =>
+      (_storeAppLogoUrl != null && _storeAppLogoUrl!.trim().isNotEmpty) ||
+      _storeAppImagePath.trim().isNotEmpty;
 
   List<CustomerInquiry> get inquiries => List.unmodifiable(_inquiries);
   List<Map<String, dynamic>> get customDeals => List.unmodifiable(_customDeals);
@@ -144,11 +157,13 @@ class ManagerStore extends ChangeNotifier {
     _linkedBusinessSlug = prefs.getString(_linkedSlugKey);
     _linkedBusinessId = prefs.getString(_linkedIdKey);
     _customerPanelMode = prefs.getString(_customerPanelModeKey) ?? 'products';
+    _storeAppImagePath = prefs.getString(_storeAppImagePathKey) ?? '';
+    _storeAppLogoUrl = prefs.getString(_storeAppLogoUrlKey);
     if (_customerPanelMode != 'products' && _customerPanelMode != 'appointments') {
       _customerPanelMode = 'products';
     }
 
-    notifyListeners();
+    notifyListenersDeferred();
   }
 
   /// Links the configured demo store from Supabase (e.g. slug `shiki`) for in-app preview.
@@ -175,6 +190,7 @@ class ManagerStore extends ChangeNotifier {
           slug: business.slug,
           storeMode: mode,
         );
+        await applyServerBranding(logoUrl: business.logoUrl);
       }
       return true;
     } catch (_) {
@@ -240,6 +256,23 @@ class ManagerStore extends ChangeNotifier {
     notifyListenersDeferred();
   }
 
+  /// Saves a slug for sharing when Supabase is unavailable (local / manual setup).
+  Future<bool> setShareSlug(String rawSlug) async {
+    var s = rawSlug.trim().toLowerCase();
+    s = s.replaceAll(RegExp(r'[^a-z0-9\s-]'), '');
+    s = s.replaceAll(RegExp(r'\s+'), '-');
+    s = s.replaceAll(RegExp(r'-+'), '-');
+    s = s.replaceAll(RegExp(r'^-|-$'), '');
+    if (s.isEmpty) return false;
+    _linkedBusinessSlug = s;
+    _linkedBusinessId ??= 'local';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_linkedSlugKey, s);
+    await prefs.setString(_linkedIdKey, _linkedBusinessId!);
+    notifyListenersDeferred();
+    return true;
+  }
+
   Future<void> linkOnlineBusiness({
     required String id,
     required String slug,
@@ -258,6 +291,65 @@ class ManagerStore extends ChangeNotifier {
     await prefs.setString(_linkedIdKey, id);
     await prefs.setString(_customerPanelModeKey, _customerPanelMode);
     if (changed) notifyListenersDeferred();
+  }
+
+  Future<void> applyServerBranding({String? logoUrl}) async {
+    final url = logoUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    if (_storeAppLogoUrl == url) return;
+    _storeAppLogoUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storeAppLogoUrlKey, url);
+    notifyListenersDeferred();
+  }
+
+  Future<void> setStoreAppImageFromPicker(String sourcePath) async {
+    final saved = await CatalogImageStorage.saveBrandFromPicker(sourcePath);
+    _storeAppImagePath = saved;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storeAppImagePathKey, saved);
+
+    final businessId = _linkedBusinessId;
+    if (SupabaseBootstrap.isReady &&
+        businessId != null &&
+        businessId != 'local' &&
+        SaasRepository.instance.currentUser != null) {
+      try {
+        final url = await SaasRepository.instance.uploadBusinessLogo(
+          businessId: businessId,
+          localPath: saved,
+        );
+        await SaasRepository.instance.updateBusinessLogoUrl(
+          businessId: businessId,
+          logoUrl: url,
+        );
+        _storeAppLogoUrl = url;
+        await prefs.setString(_storeAppLogoUrlKey, url);
+      } catch (_) {
+        // Local image still applies for manager + customers on this device.
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> clearStoreAppImage() async {
+    _storeAppImagePath = '';
+    _storeAppLogoUrl = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storeAppImagePathKey);
+    await prefs.remove(_storeAppLogoUrlKey);
+    notifyListeners();
+  }
+
+  Future<void> refreshStoreBrandingFromServer() async {
+    final slug = _linkedBusinessSlug;
+    if (!SupabaseBootstrap.isReady || slug == null || slug.isEmpty) return;
+    try {
+      final business = await SaasRepository.instance.fetchBusinessBySlug(slug);
+      if (business?.logoUrl != null && business!.logoUrl!.trim().isNotEmpty) {
+        await applyServerBranding(logoUrl: business.logoUrl);
+      }
+    } catch (_) {}
   }
 
   Future<void> applyServerStoreMode(String mode) async {

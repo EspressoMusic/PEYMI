@@ -8,9 +8,10 @@ import 'store_mode_selector.dart';
 
 /// Store mode control for manager panel — no separate sign-in required.
 class SaasStoreModeSection extends StatefulWidget {
-  const SaasStoreModeSection({super.key, this.onBusinessChanged});
+  const SaasStoreModeSection({super.key, this.onBusinessChanged, this.squareTiles = false});
 
   final ValueChanged<SaasBusiness>? onBusinessChanged;
+  final bool squareTiles;
 
   @override
   State<SaasStoreModeSection> createState() => _SaasStoreModeSectionState();
@@ -72,6 +73,7 @@ class _SaasStoreModeSectionState extends State<SaasStoreModeSection> {
 
     return StoreModeSelector(
       business: _business,
+      squareTiles: widget.squareTiles,
       onBusinessChanged: (b) {
         setState(() => _business = b);
         widget.onBusinessChanged?.call(b);

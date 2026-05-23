@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../core/app_theme_mode.dart';
 
-import '../core/app_fonts.dart';
 /// Custom bottom nav — avoids Material [NavigationBar] GlobalKey collisions when routes stack.
 class BakeryBottomBar extends StatelessWidget {
   const BakeryBottomBar({
@@ -34,7 +33,11 @@ class BakeryBottomBar extends StatelessWidget {
               final item = items[i];
               final selected = i == selectedIndex;
               return Expanded(
-                child: Material(
+                child: Semantics(
+                  button: true,
+                  selected: selected,
+                  label: item.label,
+                  child: Material(
                   color: selected ? accent.withValues(alpha: 0.14) : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                   child: InkWell(
@@ -73,6 +76,7 @@ class BakeryBottomBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
                 ),
               );
             }),

@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_fonts.dart';
 import '../../core/app_locale.dart';
+import '../../core/app_theme_mode.dart';
 import '../../core/bakery_navigator.dart';
+import '../../core/bakery_square_palette.dart';
 import '../../core/manager_store.dart';
 import '../../core/supabase/supabase_bootstrap.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import '../utils/appointment_strings.dart';
 
-/// Two-button store mode: products or appointments.
+/// Products vs appointments — inline buttons or bottom square tiles.
 class StoreModeSelector extends StatefulWidget {
   const StoreModeSelector({
     super.key,
     this.business,
     this.onBusinessChanged,
+    this.squareTiles = false,
   });
 
   final SaasBusiness? business;
   final ValueChanged<SaasBusiness>? onBusinessChanged;
+  final bool squareTiles;
 
   @override
   State<StoreModeSelector> createState() => _StoreModeSelectorState();
@@ -120,6 +125,89 @@ class _StoreModeSelectorState extends State<StoreModeSelector> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.squareTiles) {
+      return _buildSquareTiles(context);
+    }
+    return _buildInlineButtons(context);
+  }
+
+  Widget _buildSquareTiles(BuildContext context) {
+    final strings = AppLocale.instance.s;
+    final accent = BakeryTheme.accent(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          strings.managerActionStoreMode,
+          textAlign: TextAlign.center,
+          style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          strings.managerActionStoreModeSub,
+          textAlign: TextAlign.center,
+          style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.3),
+        ),
+        if (_saving) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(),
+        ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: _StoreModeSquare(
+                  label: AppointmentStrings.productsShort,
+                  icon: Icons.storefront_outlined,
+                  selected: _mode == 'products',
+                  enabled: !_saving,
+                  onTap: () => _save('products'),
+                  onInfo: () => _showModeInfo(
+                    AppointmentStrings.productsShort,
+                    AppointmentStrings.productStoreSub,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: _StoreModeSquare(
+                  label: AppointmentStrings.appointmentsShort,
+                  icon: Icons.calendar_month_outlined,
+                  selected: _mode == 'appointments',
+                  enabled: !_saving,
+                  onTap: () => _save('appointments'),
+                  onInfo: () => _showModeInfo(
+                    AppointmentStrings.appointmentsShort,
+                    AppointmentStrings.appointmentBookingSub,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _mode == 'appointments'
+              ? AppointmentStrings.appointmentBookingSub
+              : AppointmentStrings.productStoreSub,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: BakeryTheme.subtitleText(context, fontSize: 12, height: 1.3).copyWith(
+            color: accent.withValues(alpha: 0.85),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInlineButtons(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -161,6 +249,90 @@ class _StoreModeSelectorState extends State<StoreModeSelector> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StoreModeSquare extends StatelessWidget {
+  const _StoreModeSquare({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+    required this.onInfo,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback onInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = BakeryTheme.accent(context);
+    final titleColor = BakerySquarePalette.title(context);
+
+    return BakerySquarePalette.shell(
+      context: context,
+      borderRadius: 20,
+      border: selected
+          ? Border.all(color: accent, width: 2)
+          : BakerySquarePalette.squareBorder(context),
+      color: selected ? accent.withValues(alpha: 0.12) : BakerySquarePalette.squareFill(context),
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InkWell(
+              onTap: enabled ? onTap : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 34, color: selected ? accent : titleColor),
+                    const SizedBox(height: 10),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.style(
+                        fontSize: 17,
+                        height: 1.15,
+                        color: titleColor,
+                        fontWeight: AppFonts.bold,
+                      ),
+                    ),
+                    if (selected) ...[
+                      const SizedBox(height: 8),
+                      Icon(Icons.check_circle_rounded, color: accent, size: 22),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: AlignmentDirectional.topEnd,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(top: 4, end: 4),
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icon(Icons.info_outline_rounded, size: 18, color: BakeryTheme.muted(context)),
+                  onPressed: onInfo,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,0 +1,29 @@
+---
+
+description: Customer tab screens must not draw under the status bar
+
+globs: lib/widgets/customer_*.dart,lib/widgets/home_*_nav_slots.dart,lib/saas/screens/public_appointment_screen.dart
+
+alwaysApply: false
+
+---
+
+
+
+# Customer tab layout
+
+
+
+Tab bodies shown in the home bottom navigation (services, my bookings, appointments calendar) must **not** place content flush against the top of the screen.
+
+
+
+- Wrap the tab root in `CustomerTabBody` from `lib/widgets/customer_tab_body.dart`.
+
+- Use `CustomerTabBody.listPadding` for `ListView` / `GridView` padding.
+
+- Do not use only `padding: EdgeInsets.fromLTRB(16, 12, …)` without `SafeArea`.
+
+- Appointment booking squares use `BakeryTheme.appointmentTileSurface` (darker than `cardSurface`).
+
+

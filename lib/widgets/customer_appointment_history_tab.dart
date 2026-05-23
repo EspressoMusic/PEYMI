@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../core/app_locale.dart';
 import '../core/app_theme_mode.dart';
+import '../core/bakery_square_palette.dart';
 import '../core/customer_appointments_store.dart';
 import '../core/supabase/supabase_bootstrap.dart';
 import '../saas/data/saas_repository.dart';
 import '../saas/models/appointment_models.dart';
 import '../saas/models/saas_models.dart';
 import '../saas/utils/appointment_strings.dart';
+import 'customer_tab_body.dart';
 
 /// Customer tab: past and upcoming appointments — view details and cancel.
 class CustomerAppointmentHistoryTab extends StatefulWidget {
@@ -77,7 +79,7 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = AppointmentStrings.friendlyError(e);
         _loading = false;
       });
     }
@@ -99,9 +101,7 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppointmentStrings.isHebrew ? 'ביטול תור?' : 'Cancel appointment?'),
-        content: Text(
-          '${_fmt(ap)}\n${ap.serviceName}',
-        ),
+        content: Text('${_fmt(ap)}\n${ap.serviceName}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -139,40 +139,54 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
   }
 
   void _showDetails(SaasAppointment ap) {
-    showModalBottomSheet<void>(
+    final canCancel = ap.status != 'cancelled' && ap.status != 'completed';
+
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              AppointmentStrings.isHebrew ? 'פרטי תור' : 'Appointment details',
-              style: BakeryTheme.text(ctx, fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 12),
-            _detailRow(ctx, AppointmentStrings.isHebrew ? 'תאריך' : 'Date', _fmt(ap)),
-            _detailRow(ctx, AppointmentStrings.yourName.replaceAll(' *', ''), ap.customerName),
-            if (ap.customerPhone != null)
-              _detailRow(ctx, AppointmentStrings.phone.replaceAll(' *', ''), ap.customerPhone!),
-            _detailRow(ctx, AppointmentStrings.isHebrew ? 'שירות' : 'Service', ap.serviceName),
-            _detailRow(ctx, AppointmentStrings.isHebrew ? 'סטטוס' : 'Status', _statusLabel(ap.status)),
-            if (ap.notes != null && ap.notes!.trim().isNotEmpty)
-              _detailRow(ctx, AppointmentStrings.notesOptional.replaceAll(' (אופציונלי)', '').replaceAll(' (optional)', ''), ap.notes!),
-            if (ap.status != 'cancelled' && ap.status != 'completed') ...[
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _cancel(ap);
-                },
-                style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-                child: Text(AppointmentStrings.isHebrew ? 'בטל תור' : 'Cancel appointment'),
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _detailRow(ctx, AppointmentStrings.isHebrew ? 'תאריך' : 'Date', _fmt(ap)),
+              _detailRow(ctx, AppointmentStrings.yourName.replaceAll(' *', ''), ap.customerName),
+              if (ap.customerPhone != null)
+                _detailRow(ctx, AppointmentStrings.phone.replaceAll(' *', ''), ap.customerPhone!),
+              _detailRow(ctx, AppointmentStrings.isHebrew ? 'שירות' : 'Service', ap.serviceName),
+              _detailRow(ctx, AppointmentStrings.isHebrew ? 'סטטוס' : 'Status', _statusLabel(ap.status)),
+              if (ap.notes != null && ap.notes!.trim().isNotEmpty)
+                _detailRow(
+                  ctx,
+                  AppointmentStrings.notesOptional
+                      .replaceAll(' (אופציונלי)', '')
+                      .replaceAll(' (optional)', ''),
+                  ap.notes!,
+                ),
+              const SizedBox(height: 20),
+              if (canCancel)
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _cancel(ap);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(AppointmentStrings.isHebrew ? 'בטל תור' : 'Cancel appointment'),
+                ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(AppointmentStrings.cancel),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -180,15 +194,20 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
 
   static Widget _detailRow(BuildContext context, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 88,
-            child: Text(label, style: BakeryTheme.subtitleText(context)),
+            width: 72,
+            child: Text(label, style: BakeryTheme.subtitleText(context, fontSize: 14)),
           ),
-          Expanded(child: Text(value, style: BakeryTheme.text(context, fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              value,
+              style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
@@ -196,6 +215,9 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
 
   static String _fmt(SaasAppointment ap) =>
       '${ap.appointmentDate.day.toString().padLeft(2, '0')}/${ap.appointmentDate.month.toString().padLeft(2, '0')}/${ap.appointmentDate.year} · ${ap.appointmentTime}';
+
+  static String _shortDate(SaasAppointment ap) =>
+      '${ap.appointmentDate.day.toString().padLeft(2, '0')}/${ap.appointmentDate.month.toString().padLeft(2, '0')}';
 
   static String _statusLabel(String status) {
     if (!AppointmentStrings.isHebrew) return status;
@@ -221,54 +243,126 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
     final list = _forBusiness;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const CustomerTabBody(child: Center(child: CircularProgressIndicator()));
     }
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(_error!, textAlign: TextAlign.center),
-        ),
-      );
-    }
-
-    if (list.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            strings.customerNoAppointments,
-            textAlign: TextAlign.center,
-            style: BakeryTheme.text(context, fontSize: 16),
+      return CustomerTabBody(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(_error!, textAlign: TextAlign.center),
           ),
         ),
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: list.length,
-        itemBuilder: (_, i) {
-          final ap = list[i];
-          final cancelled = ap.status == 'cancelled';
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              onTap: () => _showDetails(ap),
-              title: Text(
-                _fmt(ap),
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
+    if (list.isEmpty) {
+      return CustomerTabBody(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              strings.customerNoAppointments,
+              textAlign: TextAlign.center,
+              style: BakeryTheme.text(context, fontSize: 16),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CustomerTabBody(
+      child: RefreshIndicator(
+        onRefresh: _load,
+        child: GridView.builder(
+          padding: CustomerTabBody.listPadding,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            childAspectRatio: 1,
+          ),
+          itemCount: list.length,
+          itemBuilder: (_, i) => _AppointmentSquareTile(
+            appointment: list[i],
+            onTap: () => _showDetails(list[i]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppointmentSquareTile extends StatelessWidget {
+  const _AppointmentSquareTile({
+    required this.appointment,
+    required this.onTap,
+  });
+
+  final SaasAppointment appointment;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cancelled = appointment.status == 'cancelled';
+    final surface = BakeryTheme.appointmentTileSurface(context);
+
+    return BakerySquarePalette.shell(
+      context: context,
+      borderRadius: 18,
+      color: surface,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.event_available_outlined,
+                size: 32,
+                color: cancelled
+                    ? BakeryTheme.muted(context)
+                    : BakeryTheme.accent(context),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _CustomerAppointmentHistoryTabState._shortDate(appointment),
+                style: BakeryTheme.text(
+                  context,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ).copyWith(
                   decoration: cancelled ? TextDecoration.lineThrough : null,
+                  color: cancelled ? BakeryTheme.muted(context) : null,
                 ),
               ),
-              subtitle: Text('${ap.serviceName} · ${_statusLabel(ap.status)}'),
-              trailing: const Icon(Icons.chevron_left),
-            ),
-          );
-        },
+              const SizedBox(height: 4),
+              Text(
+                appointment.appointmentTime,
+                style: BakeryTheme.text(
+                  context,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ).copyWith(
+                  decoration: cancelled ? TextDecoration.lineThrough : null,
+                  color: cancelled ? BakeryTheme.muted(context) : null,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _CustomerAppointmentHistoryTabState._statusLabel(appointment.status),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BakeryTheme.subtitleText(context, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        ),
       ),
     );
   }

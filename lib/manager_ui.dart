@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/bakery_square_palette.dart';
 import 'core/app_locale.dart';
 import 'core/app_theme_mode.dart';
 import 'core/business_health.dart';
@@ -6,10 +7,18 @@ import 'core/business_store.dart';
 import 'core/catalog_data.dart';
 import 'core/keyboard_safe.dart';
 import 'core/manager_notifications_store.dart';
+import 'core/manager_store.dart';
+import 'core/policy_consent_store.dart';
+import 'core/public_store_links.dart';
 import 'core/reviews_store.dart';
 import 'manager_action_pages.dart';
+import 'saas/app_creator_flow.dart';
+import 'saas/saas_flow.dart';
+import 'widgets/app_creator_six_tap.dart';
 import 'widgets/bakery_bottom_bar.dart';
 import 'widgets/business_health_ring.dart';
+import 'widgets/accessibility_panel_sheet.dart';
+import 'widgets/policy_consent_gate.dart';
 
 AppStrings get _s => AppLocale.instance.s;
 
@@ -23,7 +32,17 @@ class ManagerHomePage extends StatefulWidget {
 class _ManagerHomePageState extends State<ManagerHomePage> {
   int _tab = 0;
 
-  void _logout() => Navigator.of(context).pop();
+  static const _tabCount = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = _tab.clamp(0, _tabCount - 1);
+  }
+
+  void _selectTab(int index) {
+    setState(() => _tab = index.clamp(0, _tabCount - 1));
+  }
 
   static IconData _notificationIcon(ManagerNotificationKind kind) {
     switch (kind) {
@@ -55,22 +74,15 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
               ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          strings.managerNotifications,
-                          style: BakeryTheme.text(ctx, fontSize: 20, fontWeight: FontWeight.w800),
-                        ),
+                  if (items.any((n) => !n.read))
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton(
+                        onPressed: () => ManagerNotificationsStore.instance.markAllRead(),
+                        child: Text(strings.managerMarkAllRead),
                       ),
-                      if (items.any((n) => !n.read))
-                        TextButton(
-                          onPressed: () => ManagerNotificationsStore.instance.markAllRead(),
-                          child: Text(strings.managerMarkAllRead),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                    ),
+                  if (items.any((n) => !n.read)) const SizedBox(height: 4),
                   if (items.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 40),
@@ -101,6 +113,7 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
                     ),
                 ],
               ),
+              title: strings.managerNotifications,
             );
           },
         );
@@ -110,11 +123,13 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return _ManagerShell(
-      tab: _tab,
-      onTab: (i) => setState(() => _tab = i),
-      onLogout: _logout,
-      onOpenNotifications: _openNotifications,
+    return PolicyConsentGate(
+      audience: PolicyAudience.owner,
+      child: _ManagerShell(
+        tab: _tab,
+        onTab: _selectTab,
+        onOpenNotifications: _openNotifications,
+      ),
     );
   }
 }
@@ -123,13 +138,11 @@ class _ManagerShell extends StatelessWidget {
   const _ManagerShell({
     required this.tab,
     required this.onTab,
-    required this.onLogout,
     required this.onOpenNotifications,
   });
 
   final int tab;
   final ValueChanged<int> onTab;
-  final VoidCallback onLogout;
   final VoidCallback onOpenNotifications;
 
   @override
@@ -142,28 +155,26 @@ class _ManagerShell extends StatelessWidget {
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
         centerTitle: true,
-        title: tab == 2
-            ? Text(strings.managerPanel, style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800))
-            : null,
+        automaticallyImplyLeading: true,
+        title: const SizedBox.shrink(),
+        toolbarHeight: 44,
         actions: [
-          if (tab == 0)
-            _ManagerNotificationButton(onOpen: onOpenNotifications),
-          IconButton(tooltip: strings.exit, onPressed: onLogout, icon: const Icon(Icons.logout_rounded)),
+          if (tab == 0) _ManagerNotificationButton(onOpen: onOpenNotifications),
         ],
       ),
-      body: switch (tab) {
-        0 => const _ManagerDashboardTab(),
-        1 => _ManagerActionsTab(),
-        2 => _ManagerSettingsTab(onLogout: onLogout),
-        _ => const SizedBox.shrink(),
-      },
+      body: IndexedStack(
+        index: tab.clamp(0, 1),
+        children: [
+          _ManagerDashboardTab(isVisible: tab == 0),
+          const _ManagerActionsTab(),
+        ],
+      ),
       bottomNavigationBar: BakeryBottomBar(
-        selectedIndex: tab,
+        selectedIndex: tab.clamp(0, 1),
         onSelected: onTab,
         items: [
           (icon: Icons.dashboard_rounded, label: strings.managerNavDashboard),
           (icon: Icons.bolt_rounded, label: strings.managerNavActions),
-          (icon: Icons.tune_rounded, label: strings.managerNavSettings),
         ],
       ),
     );
@@ -188,6 +199,7 @@ class _ManagerNotificationButton extends StatelessWidget {
             IconButton(
               tooltip: strings.managerNotifications,
               onPressed: onOpen,
+              iconSize: 30,
               icon: const Icon(Icons.notifications_rounded),
             ),
             if (unread > 0)
@@ -214,26 +226,15 @@ class _ManagerNotificationButton extends StatelessWidget {
 }
 
 class _ManagerDashboardTab extends StatefulWidget {
-  const _ManagerDashboardTab();
+  const _ManagerDashboardTab({required this.isVisible});
+
+  final bool isVisible;
 
   @override
   State<_ManagerDashboardTab> createState() => _ManagerDashboardTabState();
 }
 
 class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
-
-  static BakeryDecor _decor(BuildContext context) {
-    return Theme.of(context).extension<BakeryDecor>() ??
-        const BakeryDecor(
-          panelTop: Color(0xFFF5EDE4),
-          panelBottom: Color(0xFFE8D5C4),
-          cardFill: Color(0xFFFFFBF7),
-          chipFill: Color(0xFFF0E6DC),
-          accent: Color(0xFF8B5A2B),
-          mutedText: Color(0xFF6B5B50),
-        );
-  }
-
   static String _formatOrderTime(int ms, bool hebrew) {
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
     final day = dt.day.toString().padLeft(2, '0');
@@ -257,11 +258,6 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
-              Text(
-                strings.managerPrepDetails,
-                style: BakeryTheme.text(ctx, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
               if (orders.isEmpty)
                 Text(strings.managerNoOrdersYet, style: BakeryTheme.subtitleText(ctx))
               else
@@ -306,9 +302,46 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                 ),
             ],
           ),
+          title: strings.managerPrepDetails,
         );
       },
     );
+  }
+
+  void _handleHealthAction(BuildContext context, HealthIssueAction action) {
+    switch (action.kind) {
+      case HealthIssueKind.poorReview:
+        final index = action.reviewIndex;
+        if (index == null) return;
+        openManagerPage(context, ManagerCustomersPage(initialReviewIndex: index));
+        break;
+      case HealthIssueKind.customerInquiries:
+        openManagerPage(context, const ManagerCustomersPage());
+        break;
+    }
+  }
+
+  List<HealthRingBadge> _issueBadges(BuildContext context, BusinessHealthSnapshot snapshot) {
+    final he = AppLocale.instance.isHebrew;
+    final seen = <String>{};
+    final badges = <HealthRingBadge>[];
+
+    for (final f in snapshot.actionableFactors) {
+      final action = f.action!;
+      final key = switch (action.kind) {
+        HealthIssueKind.poorReview => 'review_${action.reviewIndex}',
+        HealthIssueKind.customerInquiries => 'inquiries',
+      };
+      if (!seen.add(key)) continue;
+      badges.add(
+        HealthRingBadge(
+          icon: f.icon,
+          tooltip: f.title(he),
+          onTap: () => _handleHealthAction(context, action),
+        ),
+      );
+    }
+    return badges;
   }
 
   void _openHealthSheet(BuildContext context, BusinessHealthSnapshot snapshot) {
@@ -324,11 +357,6 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
-              Text(
-                strings.managerHealthWhy,
-                style: BakeryTheme.text(ctx, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
               Text(
                 '${snapshot.percent}% · ${healthLabel(he, snapshot.level)}',
                 style: BakeryTheme.subtitleText(ctx, fontSize: 14),
@@ -346,7 +374,10 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                     child: ListTile(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       tileColor: BakeryTheme.cardSurface(ctx),
-                      leading: Icon(f.icon, color: BakeryTheme.accent(ctx)),
+                      leading: Icon(
+                        f.icon,
+                        color: f.isActionable ? const Color(0xFFE53935) : BakeryTheme.accent(ctx),
+                      ),
                       title: Text(
                         f.title(he),
                         style: BakeryTheme.text(ctx, fontSize: 15, fontWeight: FontWeight.w800),
@@ -355,11 +386,21 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                         f.detail(he),
                         style: BakeryTheme.subtitleText(ctx, fontSize: 13, height: 1.35),
                       ),
+                      trailing: f.isActionable
+                          ? const Icon(Icons.chevron_left_rounded, color: Color(0xFFE53935))
+                          : null,
+                      onTap: f.isActionable
+                          ? () {
+                              Navigator.pop(ctx);
+                              _handleHealthAction(context, f.action!);
+                            }
+                          : null,
                     ),
                   ),
                 ),
             ],
           ),
+          title: strings.managerHealthWhy,
         );
       },
     );
@@ -368,42 +409,73 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
   @override
   Widget build(BuildContext context) {
     final strings = _s;
-    final reviews = ReviewsStore.instance.reviews;
-    return ListenableBuilder(
-      listenable: BusinessStore.instance,
-      builder: (context, _) {
-        final store = BusinessStore.instance;
-        final snapshot = analyzeBusinessHealth(
-          ordersCount: store.ordersCount,
-          inquiriesCount: store.inquiriesCount,
-          reviews: reviews,
-        );
-        final orders = store.recentOrders;
-        final prep = store.preparationTotals;
-        final prepUnits = store.preparationUnitCount;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-          children: [
-            const SizedBox(height: 8),
-            Center(
-              child: BusinessHealthRing(
-                level: snapshot.level,
-                size: 180,
-                onTapWhenBelowPerfect: snapshot.isPerfect
-                    ? null
-                    : () => _openHealthSheet(context, snapshot),
-              ),
-            ),
-            if (!snapshot.isPerfect) ...[
-              const SizedBox(height: 6),
-              Text(
-                strings.managerHealthTap,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.subtitleText(context, fontSize: 12),
-              ),
-            ],
-            const SizedBox(height: 20),
-            _ManagerPanel(
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      children: [
+        const SizedBox(height: 8),
+        ListenableBuilder(
+          listenable: ManagerStore.instance,
+          builder: (context, _) {
+            final shareSlug = ManagerStore.instance.linkedBusinessSlug?.trim();
+            final hasShareLink = shareSlug != null && shareSlug.isNotEmpty;
+            final shareUrl = hasShareLink ? PublicStoreLinks.publicUrlForSlug(shareSlug) : null;
+            return _ManagerShareStoreButton(
+              strings: strings,
+              hasLink: hasShareLink,
+              linkPreview: shareUrl,
+              onTap: () => openManagerShareFlow(context),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        ListenableBuilder(
+          listenable: Listenable.merge([BusinessStore.instance, ReviewsStore.instance]),
+          builder: (context, _) {
+            final store = BusinessStore.instance;
+            final snapshot = analyzeBusinessHealth(
+              ordersCount: store.ordersCount,
+              inquiriesCount: store.inquiriesCount,
+              reviews: ReviewsStore.instance.reviews,
+            );
+            return Column(
+              children: [
+                Center(
+                  child: AppCreatorSixTapDetector(
+                    onTriggered: () => openAppCreatorPasswordGate(context),
+                    child: BusinessHealthRing(
+                      level: snapshot.level,
+                      size: 240,
+                      animateWaves: widget.isVisible,
+                      issueBadges: _issueBadges(context, snapshot),
+                      onTapWhenBelowPerfect: snapshot.isPerfect
+                          ? null
+                          : () => _openHealthSheet(context, snapshot),
+                    ),
+                  ),
+                ),
+                if (!snapshot.isPerfect) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    snapshot.actionableFactors.isNotEmpty
+                        ? strings.managerHealthTapIssue
+                        : strings.managerHealthTap,
+                    textAlign: TextAlign.center,
+                    style: BakeryTheme.subtitleText(context, fontSize: 12),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        ListenableBuilder(
+          listenable: BusinessStore.instance,
+          builder: (context, _) {
+            final store = BusinessStore.instance;
+            final orders = store.recentOrders;
+            final prep = store.preparationTotals;
+            final prepUnits = store.preparationUnitCount;
+            return _ManagerPanel(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -456,10 +528,71 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                     ),
                 ],
               ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ManagerShareStoreButton extends StatelessWidget {
+  const _ManagerShareStoreButton({
+    required this.strings,
+    required this.hasLink,
+    required this.onTap,
+    this.linkPreview,
+  });
+
+  final AppStrings strings;
+  final bool hasLink;
+  final String? linkPreview;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = BakeryTheme.accent(context);
+
+    return Semantics(
+      button: true,
+      label: strings.managerShareStore,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: _ManagerPanel(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.ios_share_rounded, color: accent, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        strings.managerShareStore,
+                        style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasLink
+                            ? (linkPreview ?? strings.managerShareStoreSub)
+                            : strings.managerShareStoreNoLink,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_left_rounded, color: BakeryTheme.muted(context), size: 26),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
     );
   }
 }
@@ -473,14 +606,17 @@ class _PrepLineThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visual = CatalogData.visualForLineName(name);
-    final decor = Theme.of(context).extension<BakeryDecor>();
-    final chipFill = decor?.chipFill ?? const Color(0xFFF0E6DC);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: size,
-        height: size,
+    final chipFill = BakerySquarePalette.squareFill(context);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
         color: chipFill,
+        borderRadius: BorderRadius.circular(10),
+        border: BakerySquarePalette.squareBorder(context),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
         child: visual == null
             ? Center(child: Text('🥖', style: TextStyle(fontSize: size * 0.45)))
             : Image.asset(
@@ -540,6 +676,8 @@ class _PrepQuantityChip extends StatelessWidget {
 }
 
 class _ManagerActionsTab extends StatelessWidget {
+  const _ManagerActionsTab();
+
   @override
   Widget build(BuildContext context) {
     final strings = _s;
@@ -557,91 +695,66 @@ class _ManagerActionsTab extends StatelessWidget {
             subtitle: strings.managerActionCustomersSub,
             icon: Icons.forum_outlined,
             colorIndex: 0,
-            showInfoButton: true,
             onTap: () => openManagerPage(context, const ManagerCustomersPage()),
-          ),
-          ManagerActionSquare(
-            title: strings.managerActionUpdate,
-            subtitle: strings.managerActionUpdateSub,
-            icon: Icons.campaign_outlined,
-            colorIndex: 1,
-            showInfoButton: true,
-            onTap: () => openManagerPage(context, const ManagerUpdatePage()),
           ),
           ManagerActionSquare(
             title: strings.managerActionNewDeal,
             subtitle: strings.managerActionNewDealSub,
             icon: Icons.local_offer_outlined,
             colorIndex: 2,
-            showInfoButton: true,
             onTap: () => openManagerPage(context, const ManagerNewDealPage()),
           ),
           ManagerActionSquare(
-            title: strings.managerActionStoreMode,
-            subtitle: strings.managerActionStoreModeSub,
-            icon: Icons.tune_rounded,
-            colorIndex: 3,
-            showInfoButton: true,
-            onTap: () => openManagerPage(context, const ManagerStoreModePage()),
+            title: strings.managerActionSubscriptions,
+            subtitle: strings.managerActionSubscriptionsSub,
+            icon: Icons.workspace_premium_outlined,
+            colorIndex: 1,
+            onTap: () => openManagerPage(context, const ManagerSubscriptionsPage()),
           ),
           ManagerActionSquare(
             title: strings.managerActionStore,
             subtitle: strings.managerActionStoreSub,
             icon: Icons.storefront_outlined,
-            colorIndex: 4,
-            showInfoButton: true,
+            colorIndex: 3,
             onTap: () => openManagerPage(context, const ManagerStorePage()),
           ),
           ManagerActionSquare(
             title: strings.managerActionStats,
             subtitle: strings.managerActionStatsSub,
             icon: Icons.insights_outlined,
-            colorIndex: 5,
-            showInfoButton: true,
+            colorIndex: 4,
             onTap: () => openManagerPage(context, const ManagerStatsPage()),
+          ),
+          ManagerActionSquare(
+            title: strings.managerActionOrderLimits,
+            subtitle: strings.managerActionOrderLimitsSub,
+            icon: Icons.block_flipped,
+            colorIndex: 6,
+            onTap: () => openManagerPage(context, const ManagerOrderRestrictionsPage()),
+          ),
+          ManagerActionSquare(
+            title: strings.managerActionFaq,
+            subtitle: strings.managerActionFaqSub,
+            icon: Icons.quiz_outlined,
+            colorIndex: 7,
+            onTap: () => openManagerPage(context, const ManagerFaqPage()),
+          ),
+          ManagerActionSquare(
+            title: strings.managerActionStoreTerms,
+            subtitle: strings.managerActionStoreTermsSub,
+            icon: Icons.gavel_outlined,
+            colorIndex: 8,
+            onTap: () => openManagerPage(context, const ManagerStoreTermsPage()),
+          ),
+          ManagerActionSquare(
+            title: strings.managerActionAccessibility,
+            subtitle: strings.managerActionAccessibilitySub,
+            icon: Icons.accessible_forward_rounded,
+            colorIndex: 5,
+            onTap: () => showAccessibilityPanel(context),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ManagerSettingsTab extends StatelessWidget {
-  const _ManagerSettingsTab({required this.onLogout});
-
-  final VoidCallback onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = _s;
-    final decor = bakeryDecor(context);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-      children: [
-        Text(
-          strings.managerSettingsSub,
-          style: TextStyle(fontSize: 15, height: 1.35, fontWeight: FontWeight.w600, color: decor.mutedText),
-        ),
-        const SizedBox(height: 16),
-        _ManagerPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ListTile(
-                leading: Icon(Icons.admin_panel_settings, color: BakeryTheme.accent(context)),
-                title: Text(strings.managerPanel, style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800)),
-                subtitle: Text(strings.managerPasswordHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(Icons.logout_rounded, color: BakeryTheme.accent(context)),
-                title: Text(strings.managerLogout, style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800)),
-                onTap: onLogout,
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -658,11 +771,7 @@ class _ManagerPanel extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: BakeryTheme.panelGradient(context),
-        ),
+        color: BakerySquarePalette.squareFill(context),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: BakeryTheme.border(context), width: 1.2),
         boxShadow: isDark

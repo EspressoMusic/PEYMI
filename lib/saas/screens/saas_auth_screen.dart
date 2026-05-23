@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme_mode.dart';
+import '../../widgets/legal_links_row.dart';
 import '../data/saas_repository.dart';
 
 class SaasAuthScreen extends StatefulWidget {
@@ -59,7 +60,7 @@ class _SaasAuthScreenState extends State<SaasAuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_signUp ? 'Sign up' : 'Sign in')),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -87,6 +88,7 @@ class _SaasAuthScreenState extends State<SaasAuthScreen> {
             onPressed: _loading ? null : () => setState(() => _signUp = !_signUp),
             child: Text(_signUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'),
           ),
+          const LegalLinksRow(),
         ],
       ),
     );

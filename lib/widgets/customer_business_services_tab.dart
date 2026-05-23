@@ -5,6 +5,7 @@ import '../core/app_theme_mode.dart';
 import '../core/supabase/supabase_bootstrap.dart';
 import '../saas/data/saas_repository.dart';
 import '../saas/models/saas_models.dart';
+import 'customer_tab_body.dart';
 
 /// Customer tab: business info and listed services (active products).
 class CustomerBusinessServicesTab extends StatefulWidget {
@@ -71,24 +72,22 @@ class _CustomerBusinessServicesTabState extends State<CustomerBusinessServicesTa
     final strings = AppLocale.instance.s;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const CustomerTabBody(child: Center(child: CircularProgressIndicator()));
     }
     if (_error != null) {
-      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)));
+      return CustomerTabBody(
+        child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!))),
+      );
     }
 
     final b = _business!;
 
-    return RefreshIndicator(
+    return CustomerTabBody(
+      child: RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: CustomerTabBody.listPadding,
         children: [
-          Text(
-            strings.customerServicesTitle,
-            style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -155,6 +154,7 @@ class _CustomerBusinessServicesTabState extends State<CustomerBusinessServicesTa
             ),
         ],
       ),
+    ),
     );
   }
 }

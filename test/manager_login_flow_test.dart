@@ -4,7 +4,9 @@ import 'package:bakery_shop_app/core/app_locale.dart';
 import 'package:bakery_shop_app/core/app_theme_mode.dart';
 import 'package:bakery_shop_app/core/bakery_navigator.dart';
 import 'package:bakery_shop_app/core/business_store.dart';
+import 'package:bakery_shop_app/core/demo_store.dart';
 import 'package:bakery_shop_app/core/manager_notifications_store.dart';
+import 'package:bakery_shop_app/core/manager_store.dart';
 import 'package:bakery_shop_app/core/reviews_store.dart';
 import 'package:bakery_shop_app/main.dart';
 import 'package:bakery_shop_app/manager_ui.dart';
@@ -21,6 +23,8 @@ Future<void> _bootApp(WidgetTester tester) async {
   await BusinessStore.instance.load();
   await ReviewsStore.instance.load();
   await ManagerNotificationsStore.instance.load();
+  await ManagerStore.instance.load();
+  await ManagerStore.instance.setShareSlug(DemoStore.slug);
 
   await tester.pumpWidget(const BakeryApp());
   await tester.pump(const Duration(milliseconds: 200));
@@ -48,12 +52,26 @@ void main() {
     final strings = AppLocale.instance.s;
     final home = tester.element(find.byType(BakeryHomePage));
     final loginFuture = showManagerLogin(home);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(TextFormField), findsOneWidget);
     await tester.enterText(find.byType(TextFormField), '1234');
     await tester.tap(find.text(strings.login));
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.text(strings.managerLoginStoreChoiceTitle), findsOneWidget);
+    final continueLinked = find.text(strings.managerLoginContinueLinked);
+    if (continueLinked.evaluate().isNotEmpty) {
+      await tester.tap(continueLinked);
+    } else {
+      await tester.tap(find.text(strings.managerLoginCreateStore));
+    }
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     await loginFuture;
 
     expect(tester.takeException(), isNull);

@@ -10,4 +10,13 @@ abstract final class AppColors {
   static const brownBorder = Color(0xFFBCAAA4);
   static const brownBorderLight = Color(0xFFD7CCC8);
   static const brownSurfaceTint = Color(0xFFEFEBE9);
+
+  /// Calm mode — soft-cream fill for action/product squares (manager + customer).
+  static const darkCreamSquare = Color(0xFFE6D4B8);
+
+  /// Dark mode — navy blue + white only.
+  static const darkBlueBg = Color(0xFF081420);
+  static const darkBluePanel = Color(0xFF102A47);
+  static const darkBlueSquare = Color(0xFF1A3554);
+  static const darkBlueElevated = Color(0xFF243D5E);
 }

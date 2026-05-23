@@ -6,6 +6,7 @@ import '../data/saas_repository.dart';
 import '../models/appointment_models.dart';
 import '../models/saas_models.dart';
 import '../utils/appointment_strings.dart';
+import '../widgets/customer_payment_instructions.dart';
 
 /// Customer booking form after choosing a day and time.
 class AppointmentBookingScreen extends StatefulWidget {
@@ -71,9 +72,12 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppointmentStrings.bookingSuccess)),
+      await showCustomerPaymentSuccessDialog(
+        context: context,
+        businessId: widget.business.id,
+        isAppointment: true,
       );
+      if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -91,7 +95,7 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
         '${widget.date.day}/${widget.date.month}/${widget.date.year} · ${widget.time}';
 
     return Scaffold(
-      appBar: AppBar(title: Text(AppointmentStrings.bookAppointment)),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

@@ -1,0 +1,63 @@
+Privacy Policy — Peymiz (Bizmi)
+Version: pilot-v1 · Last updated: 20 May 2026
+
+PILOT / BETA NOTICE
+Peymiz is in a limited pilot. Features, data practices, and this policy may change before a full public or paid launch. This document is a pilot-ready draft, not legal advice.
+
+1. Who we are
+Peymiz is an international software platform for small businesses. Contact: privacy@peymiz.com
+
+2. What Peymiz is
+Peymiz helps business owners create a business page and receive orders, appointments, and customer messages. Each business is responsible for its own storefront and customers.
+
+3. Data we collect — business owners
+• Account identifiers (email, user ID)
+• Profile details (name, verified phone)
+• Business information (name, slug, description, address, phone, logo, store terms)
+• Security-related logs via our infrastructure
+• Terms/Privacy acceptance (version and timestamp)
+
+4. Data we collect — customers and visitors
+• Orders (items, notes, status)
+• Appointments (date, time, service, notes)
+• Messages (name, phone, email if provided, text)
+• Account data if signed in
+• Technical data needed to run the app
+
+Business owners see data submitted to their business only.
+
+5. Why we collect data
+To operate the platform, verify owners, secure the service, support the pilot, and comply with law where required.
+
+6. How we use data
+We use data to run Peymiz and protect users. We do NOT sell personal data.
+
+7. Where data is stored
+Data is stored in cloud infrastructure, primarily Supabase (region configured for the project). Data may be processed outside your country.
+
+8. Third-party processors
+• Supabase (database, auth, storage, functions)
+• SMS providers (e.g. Twilio) for phone verification when enabled
+• Payment processors (e.g. Stripe) when paid features launch
+• App stores as applicable
+
+9. Data security
+We use reasonable measures: TLS, access controls, database row-level security where configured, no service-role keys in client apps. No system is perfectly secure.
+
+10. Retention
+Data is kept while accounts/businesses are active and as needed for operations or law. Deletion requests: see section 11.
+
+11. Your rights
+Depending on your location you may have rights to access, correct, delete, object, or complain to a regulator (e.g. ICO, CPPA, Israeli PPA). Email privacy@peymiz.com. We do not claim full GDPR/CCPA compliance in this pilot draft; lawyer review is planned before full launch.
+
+12. International users
+Data may be processed where we or providers operate. We aim to honor applicable requests.
+
+13. Children
+Not directed at children under 16.
+
+14. Changes
+We may update this policy; new version and date will be published.
+
+15. Contact
+privacy@peymiz.com · support@peymiz.com

@@ -50,6 +50,7 @@ class SaasBusiness {
     required this.isActive,
     this.pastDueGraceUntil,
     this.storeMode = 'products',
+    this.storeTerms,
   });
 
   final String id;
@@ -65,6 +66,7 @@ class SaasBusiness {
   final bool isActive;
   final DateTime? pastDueGraceUntil;
   final String storeMode;
+  final String? storeTerms;
 
   factory SaasBusiness.fromJson(Map<String, dynamic> json) {
     return SaasBusiness(
@@ -83,6 +85,7 @@ class SaasBusiness {
           ? DateTime.tryParse(json['past_due_grace_until'] as String)
           : null,
       storeMode: json['store_mode'] as String? ?? 'products',
+      storeTerms: json['store_terms'] as String?,
     );
   }
 

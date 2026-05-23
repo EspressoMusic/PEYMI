@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>הצהרת נגישות — Bizmi</title>
+  <meta name="description" content="הצהרת נגישות לאפליקציית Bizmi / Peymiz" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .legal-page { max-width: 42rem; text-align: right; }
+    .legal-page h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+    .legal-page p, .legal-page li { line-height: 1.55; color: var(--muted); }
+    .legal-page ul { padding-right: 1.2rem; }
+    .legal-back { margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <main class="card legal-page" id="app">
+    <h1>הצהרת נגישות</h1>
+    <p><strong>Bizmi / Peymiz</strong> — אפליקציית הזמנות</p>
+    <p>עודכן: מאי 2026</p>
+
+    <h2>מחויבות</h2>
+    <p>
+      אנו פועלים להנגיש את האפליקציה והאתר לכלל האוכלוסייה, כולל אנשים עם מוגבלות,
+      בהתאם לחוק שוויון זכויות לאנשים עם מוגבלות, התשנ"ח-1998,
+      תקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), התשע"ג-2013,
+      ות"י 5568 (נגישות תכנים באינטרנט) ברמת AA ככל האפשר.
+    </p>
+
+    <h2>התאמות באפליקציה</h2>
+    <ul>
+      <li>תמיכה בעברית ואנגלית וכיוון RTL/LTR</li>
+      <li>הגדלה והקטנה של גודל הטקסט (80%–150%)</li>
+      <li>מצבי תצוגה: רגוע, בהיר וכהה</li>
+      <li>כפתורים ושדות עם תוויות; ניווט תחתון עם אייקון וטקסט</li>
+      <li>תמיכה בקוראי מסך (TalkBack / VoiceOver) בכפתורים מרכזיים</li>
+    </ul>
+
+    <h2>מגבלות ידועות</h2>
+    <ul>
+      <li>חלק מהטקסט בעברית עשוי להופיע בפונט גיבוי</li>
+      <li>התראות דחיפה תלויות בהרשאות המכשיר</li>
+    </ul>
+
+    <h2>פניות נגישות</h2>
+    <p>
+      רכז/ת נגישות:
+      <a id="a11y-email" href="mailto:shilohdhd1@gmail.com">shilohdhd1@gmail.com</a>
+    </p>
+    <p>ניצור קשר בהקדם האפשר, ובכל מקרה לא יאוחר מ-14 ימי עסקים.</p>
+
+    <p class="legal-back">
+      <a class="btn btn-outline" href="index.html">חזרה לדף הבית</a>
+    </p>
+  </main>
+  <script>
+    (function () {
+      var email = (window.BIZMI_CONFIG && window.BIZMI_CONFIG.accessibilityEmail) || 'shilohdhd1@gmail.com';
+      var el = document.getElementById('a11y-email');
+      if (el) { el.textContent = email; el.href = 'mailto:' + email; }
+    })();
+  </script>
+</body>
+</html>

@@ -300,7 +300,7 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
     if (widget.embedded) return body;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.business.businessName)),
+      appBar: AppBar(title: const SizedBox.shrink()),
       body: body,
     );
   }

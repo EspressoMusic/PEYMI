@@ -70,6 +70,11 @@ abstract final class AppointmentStrings {
     if (raw == 'business_unavailable' || raw.contains('unavailable')) {
       return unavailable;
     }
+    if (raw.contains('get_customer_appointments') || raw.contains('PGRST202')) {
+      return _he
+          ? 'חסרה פונקציה בשרת. ב-Supabase → SQL Editor הריצו את הקובץ supabase/APPLY_GET_CUSTOMER_APPOINTMENTS.sql'
+          : 'Server function missing. In Supabase SQL Editor run supabase/APPLY_GET_CUSTOMER_APPOINTMENTS.sql';
+    }
     return raw;
   }
 }

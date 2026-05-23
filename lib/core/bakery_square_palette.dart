@@ -3,85 +3,104 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_theme_mode.dart';
 
-/// Action-square colors derived from the active calm / light / dark theme.
+/// Action-square colors — calm: cream; light: white; dark: navy.
 abstract final class BakerySquarePalette {
-  static Color title(BuildContext context) => BakeryTheme.body(context);
+  static bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
 
-  static Color subtitle(BuildContext context) => BakeryTheme.subtitle(context);
+  static Color title(BuildContext context) {
+    if (_isDark(context)) return Colors.white;
+    return BakeryTheme.body(context);
+  }
+
+  static Color subtitle(BuildContext context) {
+    if (_isDark(context)) return Colors.white.withValues(alpha: 0.78);
+    if (AppThemeController.instance.mode == AppThemeMode.light) {
+      return Colors.black.withValues(alpha: 0.72);
+    }
+    return BakeryTheme.subtitle(context);
+  }
 
   static Color shadow(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return scheme.shadow.withValues(alpha: scheme.brightness == Brightness.dark ? 0.45 : 0.28);
+    return scheme.shadow.withValues(alpha: scheme.brightness == Brightness.dark ? 0.55 : 0.28);
+  }
+
+  /// Action squares / tiles — darker than [BakeryTheme.softSurface] backdrop in every theme.
+  static Color squareFill(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBlueSquare,
+      AppThemeMode.light => AppColors.darkCreamSquare,
+      AppThemeMode.calm => AppColors.darkCreamSquare,
+    };
+  }
+
+  /// Same as [BakeryTheme.softSurface] — use behind square grids.
+  static Color squareBackdrop(BuildContext context) => BakeryTheme.softSurface(context);
+
+  /// Softer tile variant (between backdrop and [squareFill]).
+  static Color lighterSquareFill(BuildContext context) {
+    return switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => AppColors.darkBlueElevated,
+      AppThemeMode.light => AppColors.brownSurfaceTint,
+      AppThemeMode.calm => AppColors.brownSurfaceTint,
+    };
+  }
+
+  /// Delicate border — matches [_OrdersPanel] / panel rectangles (1.2).
+  static const double squareBorderWidth = 1.2;
+
+  static BoxBorder squareBorder(BuildContext context, {double width = squareBorderWidth}) {
+    final color = switch (AppThemeController.instance.mode) {
+      AppThemeMode.dark => Colors.white.withValues(alpha: 0.45),
+      AppThemeMode.light => Colors.black.withValues(alpha: 0.45),
+      AppThemeMode.calm => BakeryTheme.border(context),
+    };
+    return Border.all(color: color, width: width);
+  }
+
+  /// Border on the outer box so the stroke follows the full rounded perimeter
+  /// (avoids [Material.clipBehavior] clipping corners).
+  static Widget shell({
+    required BuildContext context,
+    required Widget child,
+    double borderRadius = 20,
+    BoxBorder? border,
+    Color? color,
+    List<BoxShadow>? boxShadow,
+  }) {
+    final radius = BorderRadius.circular(borderRadius);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color ?? squareFill(context),
+        borderRadius: radius,
+        border: border ?? squareBorder(context),
+        boxShadow: boxShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: child,
+      ),
+    );
   }
 
   static List<Color> gradientAt(BuildContext context, int index) {
-    if (AppThemeController.instance.mode == AppThemeMode.calm) {
-      return _calmGradients(index);
-    }
-    return _themeGradients(context, index);
+    final c = squareFill(context);
+    return [c, c];
   }
 
-  /// Settings — manager login tile (stands out from other squares).
+  static Color solidAt(BuildContext context, int index) => squareFill(context);
+
+  static Color managerEntrySolid(BuildContext context) => squareFill(context);
+
   static List<Color> managerEntryGradient(BuildContext context) {
-    final accent = BakeryTheme.accent(context);
-    return switch (AppThemeController.instance.mode) {
-      AppThemeMode.calm => [
-          Color.lerp(AppColors.brown, const Color(0xFF6D4C41), 0.5)!,
-          const Color(0xFF8D6E63),
-        ],
-      AppThemeMode.light => [
-          const Color(0xFF3E2723),
-          const Color(0xFF5D4037),
-        ],
-      AppThemeMode.dark => [
-          const Color(0xFF1E3A5F),
-          Color.lerp(accent, const Color(0xFF2C3340), 0.35)!,
-        ],
-    };
+    final c = squareFill(context);
+    return [c, c];
   }
 
-  static Color managerEntryBorder(BuildContext context) {
-    final accent = BakeryTheme.accent(context);
-    return switch (AppThemeController.instance.mode) {
-      AppThemeMode.calm => const Color(0xFFD4A574),
-      AppThemeMode.light => accent,
-      AppThemeMode.dark => accent,
-    };
-  }
+  static Color? managerEntryBorder(BuildContext context) => null;
 
-  static Color managerEntryTitle(BuildContext context) => Colors.white;
+  static Color managerEntryTitle(BuildContext context) => title(context);
 
-  static Color managerEntrySubtitle(BuildContext context) =>
-      Colors.white.withValues(alpha: 0.88);
-
-  /// Richer earthy squares for calm mode (stronger than panel tints alone).
-  static List<Color> _calmGradients(int index) {
-    const pairs = <List<Color>>[
-      [Color(0xFFEBD9C8), Color(0xFFD4B896)],
-      [Color(0xFFF2E8DA), Color(0xFFDFC4B0)],
-      [Color(0xFFE8D0C0), Color(0xFFCDB39E)],
-      [Color(0xFFD9C3B0), Color(0xFFBC9E86)],
-      [Color(0xFFE5D8CC), Color(0xFFC9AE98)],
-    ];
-    return pairs[index % pairs.length];
-  }
-
-  static List<Color> _themeGradients(BuildContext context, int index) {
-    final decor = bakeryDecor(context);
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = scheme.brightness == Brightness.dark;
-
-    final mid = Color.lerp(decor.panelTop, decor.panelBottom, 0.45)!;
-    final soft = Color.lerp(decor.cardFill, decor.chipFill, 0.5)!;
-    final deep = Color.lerp(decor.panelBottom, decor.mutedText, isDark ? 0.35 : 0.18)!;
-
-    final pairs = <List<Color>>[
-      [decor.panelTop, decor.panelBottom],
-      [decor.cardFill, decor.chipFill],
-      [mid, soft],
-      [soft, deep],
-      [decor.panelTop, soft],
-    ];
-    return pairs[index % pairs.length];
-  }
+  static Color managerEntrySubtitle(BuildContext context) => subtitle(context);
 }

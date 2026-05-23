@@ -8,19 +8,25 @@ import 'package:url_launcher/url_launcher.dart';
 import 'core/accessibility_settings.dart';
 import 'core/app_fonts.dart';
 import 'core/app_config_scope.dart';
-import 'core/bakery_navigator.dart';
+import 'core/bakery_navigator.dart' show bakeryNavigatorKey, bakeryRootContext, popRouteSafely, waitForNavigatorSettle;
 import 'core/app_locale.dart';
+import 'core/bakery_square_palette.dart';
 import 'core/app_theme_mode.dart';
 import 'core/business_store.dart';
 import 'core/customer_appointments_store.dart';
 import 'core/catalog_store.dart';
 import 'core/community_messages_store.dart';
+import 'core/faq_store.dart';
+import 'core/store_terms_store.dart';
 import 'core/catalog_data.dart';
-import 'core/contact_bot.dart';
 import 'core/keyboard_safe.dart';
 import 'core/manager_notifications_store.dart';
 import 'core/manager_store.dart';
+import 'core/order_restrictions_store.dart';
+import 'core/manager_subscription_store.dart';
+import 'core/policy_consent_store.dart';
 import 'core/reviews_store.dart';
+import 'core/staff_auth_config.dart';
 import 'core/stripe_payment_service.dart';
 import 'core/stripe_config.dart';
 import 'manager_action_pages.dart';
@@ -36,6 +42,11 @@ import 'widgets/bakery_bottom_bar.dart';
 import 'widgets/home_catalog_slot.dart';
 import 'widgets/home_customer_nav_slots.dart';
 import 'widgets/store_announcement_panel.dart';
+import 'widgets/accessibility_panel_sheet.dart';
+import 'widgets/legal_document_screen.dart';
+import 'widgets/policy_consent_gate.dart';
+import 'widgets/semantic_icon_button.dart';
+import 'widgets/customer_tab_body.dart';
 
 AppStrings get s => AppLocale.instance.s;
 
@@ -45,17 +56,22 @@ void main() async {
   await AppThemeController.instance.load();
   await AccessibilitySettings.instance.load();
   await BusinessStore.instance.load();
+  await OrderRestrictionsStore.instance.load();
   await ReviewsStore.instance.load();
   await ManagerStore.instance.load();
   await CustomerAppointmentsStore.instance.load();
   await ManagerNotificationsStore.instance.load();
   await CatalogStore.instance.load();
   await CommunityMessagesStore.instance.load();
+  await FaqStore.instance.load();
+  await PolicyConsentStore.instance.load();
+  await ManagerSubscriptionStore.instance.load();
   await StripePaymentService.initialize();
   await SupabaseBootstrap.init();
   await ManagerStore.instance.ensureDemoStoreLinked(
     preferAppointments: ManagerStore.instance.isAppointmentCustomerMode,
   );
+  await StoreTermsStore.instance.loadForCurrentStore();
   await StoreDeepLinks.init();
   runApp(const BakeryApp());
 }
@@ -65,6 +81,8 @@ class BakeryApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Theme/locale updates go through [AppConfigScope] — do not rebuild [MaterialApp]
+    // (that breaks the navigator element tree when pushing manager/employee routes).
     return MaterialApp(
       navigatorKey: bakeryNavigatorKey,
       debugShowCheckedModeBanner: false,
@@ -77,16 +95,17 @@ class BakeryApp extends StatelessWidget {
   }
 }
 
-const String _managerPassword = '1234';
-const String _employeePassword = '4321';
-
 Future<void> showStaffLogin(
   BuildContext context, {
   required String loginTitle,
   required String passwordHint,
   required IconData headerIcon,
   required String password,
-  required Widget homePage,
+  Widget? homePage,
+  Future<void> Function(BuildContext context)? onApproved,
+  String? alternateActionLabel,
+  IconData? alternateActionIcon,
+  void Function(BuildContext dialogContext)? onAlternateAction,
 }) async {
   final strings = s;
   final passwordController = TextEditingController();
@@ -102,11 +121,15 @@ Future<void> showStaffLogin(
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.pop(dialogContext, true);
+    popRouteSafely(dialogContext, true);
   }
 
+  final dialogHost = bakeryRootContext ?? context;
+  if (!dialogHost.mounted) return;
+
   final approved = await showBakeryDialog<bool>(
-    context: context,
+    context: dialogHost,
+    showCloseButton: false,
     child: StatefulBuilder(
       builder: (dialogContext, setDialogState) {
         return _OrdersPanel(
@@ -188,9 +211,15 @@ Future<void> showStaffLogin(
                 ),
                 const SizedBox(height: 10),
                 _OrderSheetActionButton(
-                  icon: Icons.close,
-                  label: strings.cancel,
-                  onPressed: () => Navigator.pop(dialogContext, false),
+                  icon: alternateActionIcon ?? Icons.close,
+                  label: alternateActionLabel ?? strings.cancel,
+                  onPressed: () {
+                    if (onAlternateAction != null) {
+                      onAlternateAction(dialogContext);
+                    } else {
+                      popRouteSafely(dialogContext, false);
+                    }
+                  },
                 ),
               ],
             ),
@@ -206,39 +235,80 @@ Future<void> showStaffLogin(
   }
 
   FocusManager.instance.primaryFocus?.unfocus();
-  await WidgetsBinding.instance.endOfFrame;
-
-  final navigator = bakeryNavigatorKey.currentState;
-  if (navigator == null) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => passwordController.dispose());
-    return;
-  }
+  await waitForNavigatorSettle();
 
   WidgetsBinding.instance.addPostFrameCallback((_) => passwordController.dispose());
 
-  navigator.push<void>(
-    MaterialPageRoute<void>(builder: (_) => homePage),
-  );
+  if (onApproved != null) {
+    final root = bakeryRootContext;
+    if (root == null || !root.mounted) return;
+    await onApproved(root);
+    return;
+  }
+
+  if (homePage != null) {
+    final navigator = bakeryNavigatorKey.currentState;
+    if (navigator == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navigator.push<void>(
+        MaterialPageRoute<void>(builder: (_) => homePage),
+      );
+    });
+  }
 }
 
 Future<void> showManagerLogin(BuildContext context) async {
+  if (!StaffAuthConfig.isManagerLoginEnabled) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Manager login is not configured for this build.')),
+    );
+    return;
+  }
   await showStaffLogin(
     context,
     loginTitle: s.managerLoginTitle,
     passwordHint: s.managerPasswordHint,
     headerIcon: Icons.admin_panel_settings,
-    password: _managerPassword,
-    homePage: const ManagerHomePage(),
+    password: StaffAuthConfig.effectiveManagerPin,
+    alternateActionLabel: s.managerLoginOpenStore,
+    alternateActionIcon: Icons.storefront_outlined,
+    onAlternateAction: (dialogContext) {
+      popRouteSafely(dialogContext, false);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final root = bakeryRootContext;
+        if (root == null || !root.mounted) return;
+        await openSaasCreateStoreFlow(root);
+      });
+    },
+    onApproved: (ctx) async {
+      final proceed = await runManagerLoginStoreEntry(ctx);
+      if (!proceed || !ctx.mounted) return;
+      await waitForNavigatorSettle();
+      if (!ctx.mounted) return;
+      final navigator = bakeryNavigatorKey.currentState;
+      if (navigator == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigator.push<void>(
+          MaterialPageRoute<void>(builder: (_) => const ManagerHomePage()),
+        );
+      });
+    },
   );
 }
 
 Future<void> showEmployeeLogin(BuildContext context) async {
+  if (!StaffAuthConfig.isEmployeeLoginEnabled) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Employee login is not configured for this build.')),
+    );
+    return;
+  }
   await showStaffLogin(
     context,
     loginTitle: s.employeeLoginTitle,
     passwordHint: s.employeePasswordHint,
     headerIcon: Icons.badge_outlined,
-    password: _employeePassword,
+    password: StaffAuthConfig.effectiveEmployeePin,
     homePage: const EmployeeHomePage(),
   );
 }
@@ -250,7 +320,10 @@ Future<void> showReviewDialog(BuildContext context) async {
     useSafeArea: true,
     showDragHandle: true,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-    builder: (sheetContext) => bakeryModalSheetFrame(sheetContext, const _ReviewSheet()),
+    builder: (sheetContext) => bakeryModalSheetFrame(
+      sheetContext,
+      const _ReviewSheet(),
+    ),
   );
 }
 
@@ -303,18 +376,6 @@ class _ReviewSheetState extends State<_ReviewSheet> {
           padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + bottom),
           children: [
                   Text(
-                    strings.reviewsSheetTitle,
-                    textAlign: TextAlign.center,
-                    style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    strings.reviewsSheetSub,
-                    textAlign: TextAlign.center,
-                    style: BakeryTheme.subtitleText(context, fontSize: 14),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
                     strings.reviewsCountLabel(reviews.length),
                     textAlign: TextAlign.center,
                     style: BakeryTheme.subtitleText(context, fontSize: 13),
@@ -329,6 +390,7 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                   const SizedBox(height: 8),
                   _OrdersPanel(
                     padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                    surfaceColor: BakerySquarePalette.squareFill(context),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -382,6 +444,8 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                             context,
                             label: strings.reviewHint,
                             icon: Icons.edit_note_outlined,
+                          ).copyWith(
+                            fillColor: BakeryTheme.inputFill(context),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -568,6 +632,8 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return;
       setState(() {});
       _checkAnnouncementPopup();
     });
@@ -611,30 +677,12 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
       showDragHandle: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (sheetContext) {
-        final bottom = MediaQuery.viewPaddingOf(sheetContext).bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 4, 8, 16 + bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        return bakeryModalSheetFrame(
+          sheetContext,
+          ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      s.storeAnnouncementPopupTitle,
-                      style: BakeryTheme.text(sheetContext, fontSize: 20, fontWeight: FontWeight.w800),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(sheetContext),
-                    tooltip: s.dismissAnnouncement,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               StoreAnnouncementPanel(
                 message: message,
                 imagePath: ann.imagePath,
@@ -643,6 +691,8 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
               ),
             ],
           ),
+          title: s.storeAnnouncementPopupTitle,
+          heightFactor: 0.55,
         );
       },
     );
@@ -839,7 +889,6 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
           };
         })
         .toList();
-    final hasActiveOrder = cartItems.isNotEmpty || _dealOrders.isNotEmpty;
 
     final List<Widget> pages = [
       _SettingsHelpPage(),
@@ -854,13 +903,25 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
               if (_redeemedDealsAt.containsKey(dealId)) return;
               await _markDealRedeemed(dealId);
               setState(() {
+                final dealItems = <Map<String, dynamic>>[];
+                for (final raw in deal['items'] as List) {
+                  final item = Map<String, dynamic>.from(raw as Map);
+                  final id = item['id']?.toString();
+                  final product = id != null ? CatalogStore.instance.findById(id) : null;
+                  if (product != null) {
+                    item['image'] = product['image'];
+                    item['emoji'] = product['emoji'] ?? '🥖';
+                  }
+                  dealItems.add(item);
+                }
                 _dealOrders.add({
                   'id': 'DEAL-${_dealOrders.length + 1}',
                   'title': CatalogData.dealField(deal, 'title'),
                   'total': deal['priceAfterDiscount'],
                   'statusKey': 'ready',
                   'date': _formatDate(DateTime.now()),
-                  'items': List<Map<String, dynamic>>.from(deal['items'] as List),
+                  'items': dealItems,
+                  'images': (deal['images'] as List?)?.cast<String>() ?? const <String>[],
                 });
               });
               if (!context.mounted) return;
@@ -893,7 +954,9 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
 
     final showBottomBar = ModalRoute.of(context)?.isCurrent ?? true;
 
-    return Scaffold(
+    return PolicyConsentGate(
+      audience: PolicyAudience.customer,
+      child: Scaffold(
         body: Column(
           children: [
             ListenableBuilder(
@@ -1001,6 +1064,7 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
                 },
               )
             : null,
+      ),
     );
   }
 
@@ -1063,6 +1127,14 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     ];
     final hasActiveOrder = cartItems.isNotEmpty || _dealOrders.isNotEmpty;
     if (!hasActiveOrder) return;
+
+    final blockMessage = OrderRestrictionsStore.instance.placementBlockMessage(strings);
+    if (blockMessage != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(blockMessage)));
+      }
+      return;
+    }
 
     final cartTotal = _cartTotalShekels(cartItems);
     final dealTotal = _dealOrdersTotalShekels();
@@ -1248,7 +1320,6 @@ class _CatalogPage extends StatefulWidget {
 }
 
 class _CatalogPageState extends State<_CatalogPage> {
-  bool _showDrinks = false;
   int _confettiToken = 0;
 
   Future<int?> _showQuantityPicker({required BuildContext context, required int current}) async {
@@ -1292,45 +1363,16 @@ class _CatalogPageState extends State<_CatalogPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _showDrinks ? widget.drinks : widget.products;
+    final items = widget.products;
     return Stack(
       children: [
         Column(
           children: [
-            SafeArea(
-              bottom: false,
-              minimum: const EdgeInsets.only(top: 8),
-              child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              child: SegmentedButton<bool>(
-                style: SegmentedButton.styleFrom(
-                  minimumSize: const Size(0, 56),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                  textStyle: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
-                  foregroundColor: BakeryTheme.body(context),
-                  selectedForegroundColor: Theme.of(context).colorScheme.onPrimary,
-                  selectedBackgroundColor: Theme.of(context).colorScheme.primary,
-                  iconSize: 28,
-                ),
-                segments: [
-                  ButtonSegment(
-                    value: false,
-                    icon: const Icon(Icons.bakery_dining, size: 28),
-                    label: Text(s.bakeryCategory),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    icon: const Icon(Icons.local_cafe, size: 28),
-                    label: Text(s.drinksCategory),
-                  ),
-                ],
-                selected: {_showDrinks},
-                onSelectionChanged: (v) => setState(() => _showDrinks = v.first),
-              ),
-            ),
-            ),
             Expanded(
-              child: GridView.builder(
+              child: SafeArea(
+                bottom: false,
+                minimum: const EdgeInsets.only(top: 12),
+                child: GridView.builder(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
@@ -1362,14 +1404,17 @@ class _CatalogPageState extends State<_CatalogPage> {
                   );
                 },
               ),
+              ),
             ),
           ],
         ),
         if (_confettiToken > 0)
           IgnorePointer(
-            child: BakeryEmojiConfetti(
+            child: BakeryShapeConfetti(
               key: ValueKey(_confettiToken),
-              onFinished: () {},
+              onFinished: () {
+                if (mounted) setState(() => _confettiToken = 0);
+              },
             ),
           ),
       ],
@@ -1565,7 +1610,7 @@ class _ProductInfoHero extends StatelessWidget {
       decoration: BoxDecoration(
         color: BakeryTheme.softSurface(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: BakeryTheme.border(context)),
+        border: BakerySquarePalette.squareBorder(context),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
@@ -1588,7 +1633,7 @@ class _ProductInfoHero extends StatelessWidget {
   }
 }
 
-class _AnimatedProductCard extends StatefulWidget {
+class _AnimatedProductCard extends StatelessWidget {
   const _AnimatedProductCard({
     required this.item,
     required this.quantity,
@@ -1604,129 +1649,95 @@ class _AnimatedProductCard extends StatefulWidget {
   final VoidCallback onPickQuantity;
 
   @override
-  State<_AnimatedProductCard> createState() => _AnimatedProductCardState();
-}
-
-class _AnimatedProductCardState extends State<_AnimatedProductCard> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  Future<void> _showProductInfo() => _ProductInfoSheet.show(context, widget.item);
-
-  @override
   Widget build(BuildContext context) {
-    final item = widget.item;
-    return ScaleTransition(
-      scale: Tween(begin: 1.0, end: 1.03).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
-      child: Builder(
-        builder: (context) {
-          final decor = bakeryDecor(context);
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [decor.panelTop, decor.cardFill],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: BakerySquarePalette.squareFill(context),
+        borderRadius: BorderRadius.circular(20),
+        border: BakerySquarePalette.squareBorder(context),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.13),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: BakeryTheme.border(context)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.13),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+        ],
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: item['image'] != null
+                  ? CatalogItemImage(
+                      path: item['image']!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      emoji: item['emoji'] ?? '🥖',
+                    )
+                  : Center(child: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 40))),
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: item['image'] != null
-                    ? CatalogItemImage(
-                        path: item['image']!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        emoji: item['emoji'] ?? '🥖',
-                      )
-                    : Center(child: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 40))),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  CatalogData.name(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    CatalogData.name(item),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
-                  ),
+              InkWell(
+                onTap: () => _ProductInfoSheet.show(context, item),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(Icons.info_outline, size: 20, color: BakeryTheme.muted(context)),
                 ),
-                InkWell(
-                  onTap: _showProductInfo,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(Icons.info_outline, size: 20, color: BakeryTheme.muted(context)),
-                  ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item['price']!,
+                  style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
                 ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item['price']!,
-                    style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: BakeryTheme.cardSurface(context).withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: BakeryTheme.border(context)),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: BakeryTheme.cardSurface(context).withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: BakeryTheme.border(context)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _CompactIconButton(onPressed: widget.onDecrease, icon: Icons.remove),
-                      GestureDetector(
-                        onTap: widget.onPickQuantity,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            '${widget.quantity}',
-                            style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
-                          ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CompactIconButton(onPressed: onDecrease, icon: Icons.remove),
+                    GestureDetector(
+                      onTap: onPickQuantity,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          '$quantity',
+                          style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
                         ),
                       ),
-                      _CompactIconButton(onPressed: widget.onIncrease, icon: Icons.add),
-                    ],
-                  ),
+                    ),
+                    _CompactIconButton(onPressed: onIncrease, icon: Icons.add),
+                  ],
                 ),
-              ],
-            ),
-          ],
-        ),
-          );
-        },
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1756,152 +1767,149 @@ class _DealsPage extends StatelessWidget {
 
     return SafeArea(
       bottom: false,
-      minimum: const EdgeInsets.only(top: 20),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          ...sortedDeals.map((deal) {
-            final dealId = deal['id'] as String;
-            final redeemed = redeemedDealIds.contains(dealId);
-            final images = (deal['images'] as List?)?.cast<String>() ?? const <String>[];
-            final price = deal['priceAfterDiscount']?.toString() ?? '';
-            final valid = CatalogData.dealField(deal, 'valid');
+      minimum: const EdgeInsets.only(top: 12),
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 0.78,
+        ),
+        itemCount: sortedDeals.length,
+        itemBuilder: (context, index) {
+          final deal = sortedDeals[index];
+          final dealId = deal['id'] as String;
+          final redeemed = redeemedDealIds.contains(dealId);
+          final images = (deal['images'] as List?)?.cast<String>() ?? const <String>[];
+          final price = deal['priceAfterDiscount']?.toString() ?? '';
+          final valid = CatalogData.dealField(deal, 'valid');
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Opacity(
-                opacity: redeemed ? 0.5 : 1,
-                child: IgnorePointer(
-                  ignoring: redeemed,
-                  child: _OrdersPanel(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          CatalogData.dealField(deal, 'title'),
-                          textAlign: TextAlign.center,
-                          style: BakeryTheme.text(context, fontSize: 27, fontWeight: FontWeight.w800, height: 1.2),
-                        ),
-                        const SizedBox(height: 10),
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: BakeryTheme.cardSurface(context).withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: BakeryTheme.border(context)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.schedule, size: 20, color: BakeryTheme.subtitle(context)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  strings.validUntil(valid),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: BakeryTheme.subtitle(context),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        _DealProductsRow(deal: deal, images: images),
-                        const SizedBox(height: 18),
-                        _DealPriceTile(
-                          label: strings.totalPrice,
-                          value: price,
-                        ),
-                        const SizedBox(height: 16),
-                        _OrderSheetActionButton(
-                          primary: true,
-                          disabled: redeemed,
-                          icon: redeemed ? Icons.check_circle_outline : Icons.discount_outlined,
-                          label: redeemed ? strings.dealRedeemed : strings.redeemDeal,
-                          labelFontSize: 18,
-                          onPressed: redeemed ? null : () => onRedeemDeal(deal),
-                        ),
-                      ],
+          return Opacity(
+            opacity: redeemed ? 0.5 : 1,
+            child: IgnorePointer(
+              ignoring: redeemed,
+              child: _OrdersPanel(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      CatalogData.dealField(deal, 'title'),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w800, height: 1.15),
                     ),
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      strings.validUntil(valid),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BakeryTheme.subtitleText(context, fontSize: 11),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(child: _DealProductsRow(deal: deal, images: images, compact: true)),
+                    const SizedBox(height: 6),
+                    Text(
+                      price,
+                      textAlign: TextAlign.center,
+                      style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 36,
+                      child: FilledButton(
+                        onPressed: redeemed ? null : () => onRedeemDeal(deal),
+                        child: Text(
+                          redeemed ? strings.dealRedeemed : strings.redeemDeal,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }),
-        ],
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class _DealProductsRow extends StatelessWidget {
-  const _DealProductsRow({required this.deal, required this.images});
+  const _DealProductsRow({
+    required this.deal,
+    required this.images,
+    this.compact = false,
+    this.previewTileWidth,
+  });
 
   final Map<String, dynamic> deal;
   final List<String> images;
+  final bool compact;
+  final double? previewTileWidth;
 
   @override
   Widget build(BuildContext context) {
     final items = (deal['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
     if (items.isEmpty) return const SizedBox.shrink();
 
+    final maxShow = compact ? 2 : 3;
+    final shown = items.length > maxShow ? items.sublist(0, maxShow) : items;
+    final extra = items.length - shown.length;
+    final tileWidth = previewTileWidth ?? (compact ? 56.0 : 96.0);
+
     Widget plusBadge() => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: BakeryTheme.cardSurface(context).withValues(alpha: 0.95),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Icon(Icons.add, color: BakeryTheme.accent(context), size: 22),
-          ),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 6),
+          child: Icon(Icons.add, color: BakeryTheme.accent(context), size: compact ? 14 : 18),
         );
 
     final previews = <Widget>[
-      for (var i = 0; i < items.length; i++) ...[
+      for (var i = 0; i < shown.length; i++) ...[
         if (i > 0) plusBadge(),
         SizedBox(
-          width: items.length <= 2 ? 140 : 112,
+          width: tileWidth,
           child: _DealProductPreview(
             imagePath: i < images.length ? images[i] : null,
             deal: deal,
-            itemIndex: i,
+            itemIndex: items.indexOf(shown[i]),
+            compact: compact,
           ),
         ),
       ],
+      if (extra > 0)
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            '+$extra',
+            style: BakeryTheme.text(context, fontSize: compact ? 12 : 14, fontWeight: FontWeight.w800),
+          ),
+        ),
     ];
 
-    if (items.length == 1) {
-      return Center(child: SizedBox(width: 160, child: previews.first));
-    }
-    if (items.length == 2) {
-      return Row(children: [Expanded(child: previews[0]), previews[1], Expanded(child: previews[2])]);
-    }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: previews),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: previews,
     );
   }
 }
 
 class _DealProductPreview extends StatelessWidget {
-  const _DealProductPreview({required this.imagePath, required this.deal, required this.itemIndex});
+  const _DealProductPreview({
+    required this.imagePath,
+    required this.deal,
+    required this.itemIndex,
+    this.compact = false,
+  });
 
   final String? imagePath;
   final Map<String, dynamic> deal;
   final int itemIndex;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1910,65 +1918,84 @@ class _DealProductPreview extends StatelessWidget {
     final productId = item?['id']?.toString();
     final product = productId != null ? CatalogStore.instance.findById(productId) : null;
     final name = product != null ? CatalogData.name(product) : '';
+    final radius = compact ? 10.0 : 16.0;
+    final itemImage = item?['image']?.toString();
+    final effectivePath = (imagePath != null && imagePath!.isNotEmpty)
+        ? imagePath
+        : (itemImage != null && itemImage.isNotEmpty ? itemImage : product?['image']);
+    final emoji = item?['emoji']?.toString() ?? product?['emoji'] ?? '🥖';
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 4)),
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: compact ? 4 : 8,
+                offset: Offset(0, compact ? 2 : 4),
+              ),
             ],
           ),
           child: AspectRatio(
             aspectRatio: 1,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: imagePath != null
-                  ? Image.asset(
-                      imagePath!,
+              borderRadius: BorderRadius.circular(radius),
+              child: effectivePath != null && effectivePath.isNotEmpty
+                  ? CatalogItemImage(
+                      path: effectivePath,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _DealImageFallback(emoji: product?['emoji'] ?? '🥖'),
+                      emoji: emoji,
                     )
-                  : _DealImageFallback(emoji: product?['emoji'] ?? '🥖'),
+                  : _DealImageFallback(emoji: emoji, compact: compact),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800, height: 1.2),
-        ),
+        if (!compact && name.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800, height: 1.2),
+          ),
+        ],
       ],
     );
   }
 }
 
 class _DealImageFallback extends StatelessWidget {
-  const _DealImageFallback({required this.emoji});
+  const _DealImageFallback({required this.emoji, this.compact = false});
 
   final String emoji;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: BakeryTheme.softSurface(context),
       alignment: Alignment.center,
-      child: Text(emoji, style: const TextStyle(fontSize: 36)),
+      child: Text(emoji, style: TextStyle(fontSize: compact ? 22 : 36)),
     );
   }
 }
 
 class _OrdersPanel extends StatelessWidget {
-  const _OrdersPanel({required this.child, this.padding = const EdgeInsets.all(18), this.border});
+  const _OrdersPanel({
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.border,
+    this.surfaceColor,
+  });
 
   final Widget child;
   final EdgeInsets padding;
   final BoxBorder? border;
+  final Color? surfaceColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1977,11 +2004,7 @@ class _OrdersPanel extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: BakeryTheme.panelGradient(context),
-        ),
+        color: surfaceColor ?? BakerySquarePalette.squareFill(context),
         borderRadius: BorderRadius.circular(22),
         border: border ?? Border.all(color: BakeryTheme.border(context), width: 1.2),
         boxShadow: isDark
@@ -2194,7 +2217,11 @@ class _OrderSheetActionButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final decor = bakeryDecor(context);
 
-    return Material(
+    return SemanticIconButton(
+      label: label,
+      enabled: enabled,
+      onPressed: enabled ? onPressed : null,
+      child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: enabled ? onPressed : null,
@@ -2206,7 +2233,7 @@ class _OrderSheetActionButton extends StatelessWidget {
                 ? LinearGradient(colors: [scheme.primary, scheme.secondary])
                 : null,
             color: primary
-                ? (enabled ? null : decor.chipFill)
+                ? (enabled ? null : BakeryTheme.softSurface(context))
                 : decor.cardFill.withValues(alpha: enabled ? 0.95 : 0.5),
             borderRadius: BorderRadius.circular(18),
             border: primary ? null : Border.all(color: scheme.outline.withValues(alpha: 0.5), width: 1.4),
@@ -2240,6 +2267,7 @@ class _OrderSheetActionButton extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -2341,12 +2369,6 @@ class _OrdersPageState extends State<_OrdersPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                Text(
-                  strings.orderTitle(orderId),
-                  style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w800),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
@@ -2448,6 +2470,163 @@ class _OrdersPageState extends State<_OrdersPage> {
     );
   }
 
+  Widget _activeOrdersBody(BuildContext context, AppStrings strings, bool hasCheckout) {
+    if (!hasCheckout) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shopping_cart_outlined, color: BakeryTheme.accent(context), size: 40),
+            const SizedBox(height: 12),
+            Text(strings.cartEmpty, textAlign: TextAlign.center, style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              strings.cartEmptySub,
+              textAlign: TextAlign.center,
+              style: BakeryTheme.subtitleText(context, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final cartEmpty = widget.cartItems.isEmpty;
+    final dealsEmpty = widget.dealOrders.isEmpty;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 220),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!dealsEmpty) ...[
+                  Text(strings.cartDealsSection, style: BakeryTheme.text(context, fontSize: 13, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  ...widget.dealOrders.map(
+                    (deal) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: _DealCartCard(
+                        dealOrder: deal,
+                        compact: true,
+                        onRemove: () => widget.onRemoveDeal(deal['id'] as String),
+                      ),
+                    ),
+                  ),
+                ],
+                if (!cartEmpty)
+                  GridView.builder(
+                    itemCount: widget.cartItems.length,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 5,
+                      mainAxisSpacing: 5,
+                      childAspectRatio: 0.72,
+                    ),
+                    itemBuilder: (context, index) {
+                      final item = widget.cartItems[index];
+                      return _CartSquareCard(
+                        item: item,
+                        compact: true,
+                        onDecrease: () => widget.onDecrease(item['id']!),
+                        onIncrease: () => widget.onIncrease(item['id']!),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 40,
+          child: FilledButton.icon(
+            onPressed: widget.onConfirmOrder,
+            icon: const Icon(Icons.check_circle, size: 20),
+            label: Text(strings.confirmOrder, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _historyOrdersBody(BuildContext context, AppStrings strings) {
+    if (!_showPastOrders) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, color: BakeryTheme.muted(context), size: 28),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.orders.length}',
+              style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            Text(strings.tapToExpandHistory, style: BakeryTheme.subtitleText(context, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+
+    if (widget.orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_toggle_off, size: 36, color: BakeryTheme.muted(context)),
+            const SizedBox(height: 10),
+            Text(strings.noPastOrders, textAlign: TextAlign.center, style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(strings.noPastOrdersSub, textAlign: TextAlign.center, style: BakeryTheme.subtitleText(context, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: widget.orders.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final order = widget.orders[index];
+        final id = order['id'].toString();
+        final remembered = _rememberedOrderIds.contains(id);
+        final date = order['date']?.toString() ?? '';
+        final total = order['total']?.toString() ?? '';
+        return Material(
+          color: BakeryTheme.cardSurface(context).withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _openPastOrderSheet(order),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(child: Text(date, style: BakeryTheme.text(context, fontSize: 13, fontWeight: FontWeight.w700))),
+                  Text(total, style: BakeryTheme.text(context, fontSize: 14, fontWeight: FontWeight.w800)),
+                  const SizedBox(width: 4),
+                  Icon(
+                    remembered ? Icons.bookmark : Icons.chevron_right,
+                    color: remembered ? BakeryTheme.accent(context) : BakeryTheme.muted(context),
+                    size: 22,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = s;
@@ -2457,230 +2636,98 @@ class _OrdersPageState extends State<_OrdersPage> {
 
     return SafeArea(
       bottom: false,
-      minimum: const EdgeInsets.only(top: 20),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          if (widget.showAnnouncement) ...[
-            Text(strings.storeAnnouncementInOrders, style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: StoreAnnouncementPanel(
-                message: widget.announcementMessage,
-                imagePath: widget.announcementImagePath,
-                onDismiss: widget.onDismissAnnouncement,
-                compact: true,
+      minimum: const EdgeInsets.only(top: 12),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.showAnnouncement) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: StoreAnnouncementPanel(
+                  message: widget.announcementMessage,
+                  imagePath: widget.announcementImagePath,
+                  onDismiss: widget.onDismissAnnouncement,
+                  compact: true,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (!hasCheckout)
-            _OrdersPanel(
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: BakeryTheme.cardSurface(context).withValues(alpha: 0.95),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(Icons.shopping_cart_outlined, color: BakeryTheme.accent(context), size: 30),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          strings.cartEmpty,
-                          style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          strings.cartEmptySub,
-                          style: TextStyle(fontSize: 14, height: 1.35, color: BakeryTheme.subtitle(context)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else ...[
-            if (!dealsEmpty) ...[
-              Text(strings.cartDealsSection, style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              ...widget.dealOrders.map(
-                (deal) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _DealCartCard(
-                    dealOrder: deal,
-                    onRemove: () => widget.onRemoveDeal(deal['id'] as String),
-                  ),
-                ),
-              ),
-              if (!cartEmpty) const SizedBox(height: 8),
             ],
-            if (!cartEmpty) ...[
-              GridView.builder(
-                itemCount: widget.cartItems.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.92,
-                ),
-                itemBuilder: (context, index) {
-                  final item = widget.cartItems[index];
-                  return _CartSquareCard(
-                    item: item,
-                    onDecrease: () => widget.onDecrease(item['id']!),
-                    onIncrease: () => widget.onIncrease(item['id']!),
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: widget.onConfirmOrder,
-                icon: const Icon(Icons.check_circle),
-                label: Text(strings.confirmOrder),
+            _OrdersHubSquare(
+              title: strings.activeOrdersSection,
+              icon: Icons.shopping_bag_outlined,
+              child: _activeOrdersBody(context, strings, hasCheckout),
+            ),
+            const SizedBox(height: 10),
+            _OrdersHubSquare(
+              title: strings.orderHistory,
+              icon: Icons.history,
+              onHeaderTap: () => setState(() => _showPastOrders = !_showPastOrders),
+              expanded: _showPastOrders,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: _showPastOrders ? 200 : 88),
+                child: _historyOrdersBody(context, strings),
               ),
             ),
           ],
-          const SizedBox(height: 28),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersHubSquare extends StatelessWidget {
+  const _OrdersHubSquare({
+    required this.title,
+    required this.child,
+    this.icon,
+    this.onHeaderTap,
+    this.expanded = false,
+  });
+
+  final String title;
+  final Widget child;
+  final IconData? icon;
+  final VoidCallback? onHeaderTap;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return _OrdersPanel(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              onTap: () => setState(() => _showPastOrders = !_showPastOrders),
-              child: _OrdersPanel(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            strings.orderHistory,
-                            style: BakeryTheme.text(context, fontSize: 19, fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            strings.tapToExpandHistory,
-                            style: TextStyle(fontSize: 14, color: BakeryTheme.subtitle(context)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    AnimatedRotation(
-                      turns: _showPastOrders ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 220),
-                      child: Icon(Icons.expand_more, color: BakeryTheme.accent(context), size: 28),
-                    ),
+              borderRadius: BorderRadius.circular(12),
+              onTap: onHeaderTap,
+              child: Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, color: BakeryTheme.accent(context), size: 22),
+                    const SizedBox(width: 8),
                   ],
-                ),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  if (onHeaderTap != null)
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      child: Icon(Icons.expand_more, color: BakeryTheme.accent(context), size: 24),
+                    ),
+                ],
               ),
             ),
           ),
-          if (_showPastOrders) ...[
-            const SizedBox(height: 20),
-            if (widget.orders.isEmpty)
-              _OrdersPanel(
-                child: Column(
-                  children: [
-                    Icon(Icons.history_toggle_off, size: 40, color: BakeryTheme.muted(context)),
-                    const SizedBox(height: 12),
-                    Text(
-                      strings.noPastOrders,
-                      textAlign: TextAlign.center,
-                      style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      strings.noPastOrdersSub,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, height: 1.35, color: BakeryTheme.subtitle(context)),
-                    ),
-                  ],
-                ),
-              )
-            else
-              ...widget.orders.map((order) {
-                final id = order['id'].toString();
-                final remembered = _rememberedOrderIds.contains(id);
-                final date = order['date']?.toString() ?? '';
-                final total = order['total']?.toString() ?? '';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: _OrdersPanel(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () => _openPastOrderSheet(order),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: _OrderMetricTile(
-                                      icon: Icons.calendar_month_outlined,
-                                      label: strings.date,
-                                      value: date,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _OrderMetricTile(
-                                      icon: Icons.payments_outlined,
-                                      label: strings.totalPrice,
-                                      value: total,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        if (remembered)
-                          IconButton(
-                            tooltip: strings.forgetOrder,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                            onPressed: () => _forgetOrder(id),
-                            icon: Icon(Icons.bookmark, color: BakeryTheme.accent(context), size: 24),
-                          )
-                        else
-                          IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                            onPressed: () => _openPastOrderSheet(order),
-                            icon: Icon(Icons.chevron_right, color: BakeryTheme.muted(context), size: 26),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-          ],
+          const SizedBox(height: 6),
+          child,
         ],
       ),
     );
@@ -2691,66 +2738,105 @@ class _DealCartCard extends StatelessWidget {
   const _DealCartCard({
     required this.dealOrder,
     required this.onRemove,
+    this.compact = false,
   });
 
   final Map<String, dynamic> dealOrder;
   final VoidCallback onRemove;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final strings = s;
     final items = (dealOrder['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+    final images = (dealOrder['images'] as List?)?.cast<String>() ?? const <String>[];
     final title = dealOrder['title']?.toString() ?? strings.navDeals;
     final total = dealOrder['total']?.toString() ?? '';
+    final showPreviews = items.isNotEmpty || images.isNotEmpty;
 
+    final thumb = compact ? 36.0 : 40.0;
     return _OrdersPanel(
-      padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+      padding: EdgeInsets.fromLTRB(compact ? 10 : 14, compact ? 8 : 14, compact ? 8 : 10, compact ? 8 : 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.local_offer_outlined, color: BakeryTheme.accent(context), size: 28),
-              const SizedBox(width: 10),
+              if (showPreviews) ...[
+                SizedBox(
+                  width: compact ? 108 : 140,
+                  child: _DealProductsRow(
+                    deal: {'items': items},
+                    images: images,
+                    compact: true,
+                    previewTileWidth: thumb,
+                  ),
+                ),
+                SizedBox(width: compact ? 8 : 10),
+              ] else
+                Padding(
+                  padding: EdgeInsets.only(top: compact ? 2 : 0),
+                  child: Icon(Icons.local_offer_outlined, color: BakeryTheme.accent(context), size: compact ? 22 : 28),
+                ),
+              if (!showPreviews) const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text(
+                      title,
+                      style: BakeryTheme.text(
+                        context,
+                        fontSize: compact ? 14 : 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     if (total.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(total, style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 2),
+                      Text(
+                        total,
+                        style: BakeryTheme.text(
+                          context,
+                          fontSize: compact ? 15 : 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
               IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 tooltip: strings.removeDealFromCart,
                 onPressed: onRemove,
-                icon: Icon(Icons.close_rounded, color: BakeryTheme.muted(context)),
+                icon: Icon(Icons.close_rounded, color: BakeryTheme.muted(context), size: compact ? 20 : 24),
               ),
             ],
           ),
-          if (items.isNotEmpty) ...[
+          if (items.isNotEmpty && !compact) ...[
             const SizedBox(height: 10),
             ...items.map((item) {
               final id = item['id']?.toString();
               final product = id != null ? CatalogStore.instance.findById(id) : null;
               final name = product != null ? CatalogData.name(product) : id ?? '';
+              final imagePath = item['image']?.toString() ?? product?['image'];
+              final emoji = item['emoji']?.toString() ?? product?['emoji'] ?? '🥖';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
-                    if (product?['image'] != null)
+                    if (imagePath != null && imagePath.isNotEmpty)
                       CatalogItemImage(
-                        path: product!['image']!,
-                        width: 40,
-                        height: 40,
+                        path: imagePath,
+                        width: thumb,
+                        height: thumb,
                         borderRadius: BorderRadius.circular(10),
-                        emoji: product['emoji'] ?? '🥖',
+                        emoji: emoji,
                       ),
-                    if (product?['image'] != null) const SizedBox(width: 10),
+                    if (imagePath != null && imagePath.isNotEmpty) const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '$name ×${item['quantity'] ?? '1'}',
@@ -2773,27 +2859,27 @@ class _CartSquareCard extends StatelessWidget {
     required this.item,
     required this.onDecrease,
     required this.onIncrease,
+    this.compact = false,
   });
 
   final Map<String, String> item;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final imagePath = item['image'];
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
+    final pad = compact ? 4.0 : 12.0;
+    final radius = compact ? 10.0 : 18.0;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(pad),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: BakeryTheme.panelGradient(context),
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: BakeryTheme.border(context), width: 2.4),
+        color: BakeryTheme.softSurface(context),
+        borderRadius: BorderRadius.circular(radius),
+        border: BakerySquarePalette.squareBorder(context),
         boxShadow: isDark
             ? [
                 BoxShadow(
@@ -2811,10 +2897,10 @@ class _CartSquareCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            flex: 5,
+            flex: compact ? 3 : 5,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: imagePath != null
+              borderRadius: BorderRadius.circular(compact ? 6 : 14),
+              child: imagePath != null && imagePath.isNotEmpty
                   ? CatalogItemImage(
                       path: imagePath,
                       fit: BoxFit.cover,
@@ -2822,50 +2908,73 @@ class _CartSquareCard extends StatelessWidget {
                       emoji: item['emoji'] ?? '🥖',
                     )
                   : Center(
-                      child: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 40)),
+                      child: Text(
+                        item['emoji'] ?? '🥖',
+                        style: TextStyle(fontSize: compact ? 18 : 40),
+                      ),
                     ),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? 2 : 6),
           Text(
             item['name']!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: BakeryTheme.body(context)),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: compact ? 8 : 12,
+              color: BakeryTheme.body(context),
+            ),
           ),
           Text(
             item['price']!,
             textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: BakeryTheme.subtitle(context)),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: compact ? 7 : 11,
+              color: BakeryTheme.subtitle(context),
+            ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? 2 : 6),
           Container(
-            height: 34,
+            height: compact ? 20 : 34,
             decoration: BoxDecoration(
               color: BakeryTheme.cardSurface(context).withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: BakeryTheme.border(context), width: 1.8),
+              borderRadius: BorderRadius.circular(compact ? 8 : 12),
+              border: Border.all(color: BakeryTheme.border(context), width: compact ? 1.2 : 1.8),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 InkWell(
                   onTap: onDecrease,
-                  borderRadius: BorderRadius.circular(10),
-                  child: const SizedBox(width: 32, height: 32, child: Icon(Icons.remove, size: 18)),
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: compact ? 18 : 32,
+                    height: compact ? 18 : 32,
+                    child: Icon(Icons.remove, size: compact ? 12 : 18),
+                  ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 8),
                   child: Text(
                     item['quantity']!,
-                    style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w800),
+                    style: BakeryTheme.text(
+                      context,
+                      fontSize: compact ? 9 : 15,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 InkWell(
                   onTap: onIncrease,
-                  borderRadius: BorderRadius.circular(10),
-                  child: const SizedBox(width: 32, height: 32, child: Icon(Icons.add, size: 18)),
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: compact ? 18 : 32,
+                    height: compact ? 18 : 32,
+                    child: Icon(Icons.add, size: compact ? 12 : 18),
+                  ),
                 ),
               ],
             ),
@@ -2910,81 +3019,47 @@ class _HelpSheetShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gradient = BakeryTheme.panelGradient(context);
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [gradient.first, gradient.last.withValues(alpha: 0.92), Theme.of(context).scaffoldBackgroundColor],
-            stops: const [0, 0.35, 1],
-          ),
-          border: Border(top: BorderSide(color: BakeryTheme.border(context), width: 1.2)),
-        ),
-        child: child,
-      ),
+    return ColoredBox(
+      color: BakeryTheme.softSurface(context),
+      child: child,
     );
   }
 }
 
 class _HelpSheetHeader extends StatelessWidget {
-  const _HelpSheetHeader({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+  const _HelpSheetHeader({required this.icon});
 
   final IconData icon;
-  final String title;
-  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.85, end: 1),
-          duration: const Duration(milliseconds: 520),
-          curve: Curves.elasticOut,
-          builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  scheme.primary.withValues(alpha: 0.3),
-                  scheme.secondary.withValues(alpha: 0.14),
-                ],
-              ),
-              border: Border.all(color: scheme.primary.withValues(alpha: 0.38)),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.primary.withValues(alpha: 0.22),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Icon(icon, size: 32, color: scheme.primary),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.85, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.elasticOut,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [
+              scheme.primary.withValues(alpha: 0.3),
+              scheme.secondary.withValues(alpha: 0.14),
+            ],
           ),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.38)),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.primary.withValues(alpha: 0.22),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
-          style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
-        ),
-      ],
+        child: Icon(icon, size: 32, color: scheme.primary),
+      ),
     );
   }
 }
@@ -3032,239 +3107,123 @@ class _SheetEntranceState extends State<_SheetEntrance> with SingleTickerProvide
   }
 }
 
-class _FaqExpandTile extends StatelessWidget {
-  const _FaqExpandTile({
-    required this.index,
-    required this.question,
-    required this.answer,
-    required this.isOpen,
-    required this.onTap,
+String _formatCommunityTime(int ms) {
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  final now = DateTime.now();
+  final hh = d.hour.toString().padLeft(2, '0');
+  final mm = d.minute.toString().padLeft(2, '0');
+  if (d.year == now.year && d.month == now.month && d.day == now.day) {
+    return '$hh:$mm';
+  }
+  return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} $hh:$mm';
+}
+
+Color _whatsappChatBackground(BuildContext context) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return dark ? const Color(0xFF0B141A) : const Color(0xFFECE5DD);
+}
+
+class _CommunityMessageBubble extends StatelessWidget {
+  const _CommunityMessageBubble({
+    required this.author,
+    required this.text,
+    required this.timeLabel,
+    required this.isMine,
   });
 
-  final int index;
-  final String question;
-  final String answer;
-  final bool isOpen;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final decor = bakeryDecor(context);
-    final accent = BakeryTheme.accent(context);
-    final scheme = Theme.of(context).colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeInOut,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isOpen ? accent.withValues(alpha: 0.55) : BakeryTheme.border(context),
-          width: isOpen ? 1.4 : 1.1,
-        ),
-        boxShadow: isOpen
-            ? [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.14),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
-      ),
-      child: _OrdersPanel(
-        padding: EdgeInsets.zero,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: onTap,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                color: isOpen ? scheme.primary.withValues(alpha: 0.07) : Colors.transparent,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 280),
-                        width: 30,
-                        height: 30,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isOpen ? accent.withValues(alpha: 0.2) : decor.chipFill,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: isOpen ? accent : decor.mutedText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          question,
-                          style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800, height: 1.35),
-                        ),
-                      ),
-                      AnimatedRotation(
-                        turns: isOpen ? 0.5 : 0,
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeInOut,
-                        child: Icon(Icons.add_rounded, color: accent, size: 26),
-                      ),
-                    ],
-                  ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeInOutCubic,
-                    alignment: Alignment.topCenter,
-                    child: isOpen
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 12, left: 42, right: 8),
-                            child: Text(
-                              answer,
-                              style: TextStyle(
-                                fontSize: 15,
-                                height: 1.5,
-                                fontWeight: AppFonts.regular,
-                                color: decor.mutedText,
-                              ),
-                            ),
-                          )
-                        : const SizedBox(width: double.infinity),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ContactChatBubble extends StatefulWidget {
-  const _ContactChatBubble({super.key, required this.fromBot, required this.text});
-
-  final bool fromBot;
+  final String author;
   final String text;
-
-  @override
-  State<_ContactChatBubble> createState() => _ContactChatBubbleState();
-}
-
-class _ContactChatBubbleState extends State<_ContactChatBubble> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: Offset(widget.fromBot ? -0.08 : 0.08, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final String timeLabel;
+  final bool isMine;
 
   @override
   Widget build(BuildContext context) {
-    final align = widget.fromBot ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd;
-    final scheme = Theme.of(context).colorScheme;
-    final accent = BakeryTheme.accent(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final incomingBg = dark ? const Color(0xFF1F2C34) : Colors.white;
+    final outgoingBg = dark ? const Color(0xFF005C4B) : const Color(0xFFDCF8C6);
+    final incomingText = dark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21);
+    final outgoingText = dark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21);
+    final authorColor = dark ? const Color(0xFF53BDEB) : const Color(0xFF128C7E);
 
     final bubble = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
       decoration: BoxDecoration(
-        gradient: widget.fromBot
-            ? null
-            : LinearGradient(
-                colors: [accent.withValues(alpha: 0.22), accent.withValues(alpha: 0.1)],
-              ),
-        color: widget.fromBot ? BakeryTheme.cardSurface(context).withValues(alpha: 0.96) : null,
+        color: isMine ? outgoingBg : incomingBg,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(widget.fromBot ? 4 : 18),
-          bottomRight: Radius.circular(widget.fromBot ? 18 : 4),
-        ),
-        border: Border.all(
-          color: widget.fromBot ? BakeryTheme.border(context) : accent.withValues(alpha: 0.35),
+          topLeft: const Radius.circular(12),
+          topRight: const Radius.circular(12),
+          bottomLeft: Radius.circular(isMine ? 12 : 2),
+          bottomRight: Radius.circular(isMine ? 2 : 12),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: scheme.brightness == Brightness.dark ? 0.28 : 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: dark ? 0.25 : 0.06),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
-      child: Text(
-        widget.text,
-        style: TextStyle(
-          fontSize: 15,
-          height: 1.45,
-          fontWeight: FontWeight.w600,
-          color: BakeryTheme.body(context),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isMine && author.isNotEmpty) ...[
+            Text(
+              author,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: authorColor),
+            ),
+            const SizedBox(height: 3),
+          ],
+          Text(
+            text,
+            style: TextStyle(fontSize: 15, height: 1.38, color: isMine ? outgoingText : incomingText),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Text(
+              timeLabel,
+              style: TextStyle(
+                fontSize: 11,
+                color: (isMine ? outgoingText : incomingText).withValues(alpha: 0.55),
+              ),
+            ),
+          ),
+        ],
       ),
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: FadeTransition(
-        opacity: _fade,
-        child: SlideTransition(
-          position: _slide,
-          child: Align(
-            alignment: align,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (widget.fromBot) ...[
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: accent.withValues(alpha: 0.18),
-                    child: Icon(Icons.smart_toy_rounded, size: 18, color: accent),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.68),
-                  child: bubble,
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Align(
+        alignment: isMine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          textDirection: isMine ? TextDirection.rtl : TextDirection.ltr,
+          children: [
+            if (!isMine) ...[
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: authorColor.withValues(alpha: 0.2),
+                child: Text(
+                  author.isNotEmpty ? author[0].toUpperCase() : '?',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: authorColor),
                 ),
-              ],
+              ),
+              const SizedBox(width: 6),
+            ],
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+              child: bubble,
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-enum _ContactPanelMode { bot, email, community }
+enum _ContactPanelMode { community, email }
 
 class _ContactPanelSheet extends StatefulWidget {
   const _ContactPanelSheet({
@@ -3282,69 +3241,61 @@ class _ContactPanelSheet extends StatefulWidget {
 }
 
 class _ContactPanelSheetState extends State<_ContactPanelSheet> {
-  _ContactPanelMode _mode = _ContactPanelMode.bot;
-  final List<({bool fromBot, String text})> _messages = [];
-  int _botFails = 0;
-  bool _showOwnerForm = false;
-  final _listScroll = ScrollController();
+  _ContactPanelMode _mode = _ContactPanelMode.community;
+  final _communityScroll = ScrollController();
+  final _emailScroll = ScrollController();
 
-  final _chatController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
-  final _ownerNameController = TextEditingController();
-  final _ownerMessageController = TextEditingController();
   final _communityNameController = TextEditingController();
   final _communityMessageController = TextEditingController();
   final _emailFormKey = GlobalKey<FormState>();
-  final _ownerFormKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
-    _messages.add((fromBot: true, text: s.botWelcome));
+    final saved = CommunityMessagesStore.instance.displayName;
+    if (saved.isNotEmpty) {
+      _communityNameController.text = saved;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollCommunityToEnd());
   }
 
   @override
   void dispose() {
-    _listScroll.dispose();
-    _chatController.dispose();
+    _communityScroll.dispose();
+    _emailScroll.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _messageController.dispose();
-    _ownerNameController.dispose();
-    _ownerMessageController.dispose();
     _communityNameController.dispose();
     _communityMessageController.dispose();
     super.dispose();
   }
 
-  void _sendChat() {
-    final strings = s;
-    final text = _chatController.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      _messages.add((fromBot: false, text: text));
-      _chatController.clear();
-      final reply = ContactBot.reply(text, AppLocale.instance.isHebrew);
-      if (reply != null) {
-        _botFails = 0;
-        _messages.add((fromBot: true, text: reply));
-      } else {
-        _botFails++;
-        _messages.add((fromBot: true, text: strings.botNoAnswer));
-        if (_botFails >= 2) _showOwnerForm = true;
-      }
-    });
+  void _scrollCommunityToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_listScroll.hasClients) {
-        _listScroll.animateTo(
-          _listScroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!_communityScroll.hasClients) return;
+      _communityScroll.animateTo(
+        _communityScroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
     });
+  }
+
+  Future<void> _sendCommunityMessage() async {
+    final text = _communityMessageController.text.trim();
+    if (text.isEmpty) return;
+    await CommunityMessagesStore.instance.post(
+      author: _communityNameController.text,
+      text: text,
+    );
+    _communityMessageController.clear();
+    if (!mounted) return;
+    setState(() {});
+    _scrollCommunityToEnd();
   }
 
   Future<void> _sendEmail() async {
@@ -3375,45 +3326,19 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     }
   }
 
-  Future<void> _sendToOwner() async {
-    final strings = s;
-    if (!(_ownerFormKey.currentState?.validate() ?? false)) return;
-    final body =
-        '${strings.yourName}: ${_ownerNameController.text.trim()}\n${_ownerMessageController.text.trim()}';
-    final smsUri = Uri.parse('sms:${widget.contactPhone}?body=${Uri.encodeComponent(body)}');
-    final waUri = Uri.parse(
-      'https://wa.me/972${widget.contactPhone.substring(1)}?text=${Uri.encodeComponent(body)}',
-    );
-    if (await canLaunchUrl(waUri)) {
-      await launchUrl(waUri, mode: LaunchMode.externalApplication);
-    } else if (await canLaunchUrl(smsUri)) {
-      await launchUrl(smsUri);
-    }
-    await ManagerStore.instance.logInquiry(
-      message: _ownerMessageController.text.trim(),
-      channel: 'owner',
-      customerName: _ownerNameController.text.trim(),
-    );
-    await BusinessStore.instance.recordInquiry();
-    if (!mounted) return;
-    Navigator.pop(context);
-    if (widget.parentContext.mounted) {
-      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-        SnackBar(content: Text(strings.ownerMessageSent)),
-      );
-    }
-  }
-
   Widget _buildModeSwitcher(AppStrings strings) {
     return _OrdersPanel(
       padding: const EdgeInsets.all(5),
       child: Row(
         children: [
           _contactModeChip(
-            selected: _mode == _ContactPanelMode.bot,
-            icon: Icons.smart_toy_rounded,
-            label: strings.contactBotTab,
-            onTap: () => setState(() => _mode = _ContactPanelMode.bot),
+            selected: _mode == _ContactPanelMode.community,
+            icon: Icons.forum_rounded,
+            label: strings.contactCommunityTab,
+            onTap: () {
+              setState(() => _mode = _ContactPanelMode.community);
+              _scrollCommunityToEnd();
+            },
           ),
           const SizedBox(width: 6),
           _contactModeChip(
@@ -3421,13 +3346,6 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
             icon: Icons.email_rounded,
             label: strings.contactEmailTab,
             onTap: () => setState(() => _mode = _ContactPanelMode.email),
-          ),
-          const SizedBox(width: 6),
-          _contactModeChip(
-            selected: _mode == _ContactPanelMode.community,
-            icon: Icons.forum_outlined,
-            label: strings.contactCommunityTab,
-            onTap: () => setState(() => _mode = _ContactPanelMode.community),
           ),
         ],
       ),
@@ -3485,7 +3403,6 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
   @override
   Widget build(BuildContext context) {
     final strings = s;
-    final decor = bakeryDecor(context);
     final bottom = MediaQuery.viewPaddingOf(context).bottom;
 
     return Padding(
@@ -3493,12 +3410,6 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HelpSheetHeader(
-            icon: Icons.support_agent_rounded,
-            title: strings.contactTitle,
-            subtitle: strings.contactSub,
-          ),
-          const SizedBox(height: 16),
           _buildModeSwitcher(strings),
           const SizedBox(height: 14),
           Expanded(
@@ -3506,6 +3417,16 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
               duration: const Duration(milliseconds: 300),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  fit: StackFit.expand,
+                  alignment: Alignment.topCenter,
+                  children: [
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
               transitionBuilder: (child, animation) {
                 return FadeTransition(
                   opacity: animation,
@@ -3516,9 +3437,14 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
                 );
               },
               child: switch (_mode) {
-                _ContactPanelMode.bot => _buildBotView(strings, decor, key: const ValueKey('bot')),
-                _ContactPanelMode.email => _buildEmailView(strings, key: const ValueKey('email')),
-                _ContactPanelMode.community => _buildCommunityView(strings, key: const ValueKey('community')),
+                _ContactPanelMode.community => SizedBox.expand(
+                  key: const ValueKey('community'),
+                  child: _buildCommunityView(strings),
+                ),
+                _ContactPanelMode.email => SizedBox.expand(
+                  key: const ValueKey('email'),
+                  child: _buildEmailView(strings),
+                ),
               },
             ),
           ),
@@ -3527,67 +3453,162 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     );
   }
 
-  Widget _buildCommunityView(AppStrings strings, {Key? key}) {
+  Widget _buildCommunityView(AppStrings strings) {
     final he = AppLocale.instance.isHebrew;
+    final store = CommunityMessagesStore.instance;
+    final myName = store.displayName.trim().isNotEmpty
+        ? store.displayName.trim()
+        : _communityNameController.text.trim();
+
     return ListenableBuilder(
-      key: key,
-      listenable: CommunityMessagesStore.instance,
+      listenable: store,
       builder: (context, _) {
-        final messages = CommunityMessagesStore.instance.messages;
+        final messages = store.messagesChronological;
+        final chatChildren = <Widget>[
+          if (messages.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                strings.contactCommunityEmpty,
+                textAlign: TextAlign.center,
+                style: BakeryTheme.subtitleText(context, fontSize: 14),
+              ),
+            )
+          else
+            for (final m in messages)
+              if (m.text(he).isNotEmpty)
+                _CommunityMessageBubble(
+                  author: m.author(he),
+                  text: m.text(he),
+                  timeLabel: _formatCommunityTime(m.createdAtMs),
+                  isMine: myName.isNotEmpty && m.author(he) == myName,
+                ),
+        ];
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(strings.contactCommunityHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-            const SizedBox(height: 10),
             Expanded(
-              child: _OrdersPanel(
-                padding: const EdgeInsets.all(12),
-                child: messages.isEmpty
-                    ? Center(child: Text(strings.contactCommunityEmpty, style: BakeryTheme.subtitleText(context)))
-                    : ListView.builder(
-                        itemCount: messages.length,
-                        itemBuilder: (context, i) {
-                          final m = messages[i];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(m.author(he), style: BakeryTheme.text(context, fontSize: 14, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 4),
-                                Text(m.text(he), style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.35)),
-                              ],
-                            ),
-                          );
-                        },
+              child: ListView(
+                controller: _communityScroll,
+                padding: EdgeInsets.zero,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF1F2C34)
+                          : const Color(0xFF075E54),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.contactCommunityTitle,
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                              ),
+                              Text(
+                                strings.contactCommunityHint,
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: ColoredBox(
+                      color: _whatsappChatBackground(context),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: chatChildren,
+                        ),
                       ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _communityNameController,
-              decoration: bakeryInputDecoration(context, label: strings.contactYourName, icon: Icons.person_outline),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _communityMessageController,
-              maxLines: 3,
-              decoration: bakeryInputDecoration(context, label: strings.yourMessage, icon: Icons.chat_bubble_outline),
-            ),
-            const SizedBox(height: 10),
-            _OrderSheetActionButton(
-              primary: true,
-              icon: Icons.send_rounded,
-              label: strings.contactPostMessage,
-              onPressed: () async {
-                await CommunityMessagesStore.instance.post(
-                  author: _communityNameController.text,
-                  text: _communityMessageController.text,
-                );
-                _communityMessageController.clear();
-                if (!mounted) return;
-                setState(() {});
-              },
+            const SizedBox(height: 6),
+            SafeArea(
+              top: false,
+              minimum: EdgeInsets.zero,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (store.displayName.isEmpty) ...[
+                    TextField(
+                      controller: _communityNameController,
+                      style: BakeryTheme.text(context, fontSize: 14),
+                      decoration: bakeryInputDecoration(
+                        context,
+                        label: strings.contactYourName,
+                        icon: Icons.person_outline,
+                      ).copyWith(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _communityMessageController,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendCommunityMessage(),
+                          style: BakeryTheme.text(context, fontSize: 15),
+                          decoration: bakeryInputDecoration(
+                            context,
+                            label: strings.contactTypeMessage,
+                            icon: Icons.chat_bubble_outline,
+                          ).copyWith(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Material(
+                          color: const Color(0xFF25D366),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _sendCommunityMessage,
+                            child: const Center(
+                              child: Icon(Icons.send_rounded, color: Colors.white, size: 22),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         );
@@ -3595,130 +3616,9 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     );
   }
 
-  Widget _buildBotView(AppStrings strings, BakeryDecor decor, {Key? key}) {
-    return Column(
-      key: key,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: _OrdersPanel(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: ListView(
-              controller: _listScroll,
-              children: [
-                ..._messages.asMap().entries.map(
-                      (e) => _ContactChatBubble(
-                        key: ValueKey('msg_${e.key}_${e.value.text.hashCode}'),
-                        fromBot: e.value.fromBot,
-                        text: e.value.text,
-                      ),
-                    ),
-                if (_showOwnerForm) ...[
-                  const SizedBox(height: 8),
-                  _SheetEntrance(
-                    delayMs: 0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          strings.contactOwnerHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, height: 1.35, fontWeight: FontWeight.w600, color: decor.mutedText),
-                        ),
-                        const SizedBox(height: 12),
-                        _OrdersPanel(
-                          padding: const EdgeInsets.all(16),
-                          child: Form(
-                            key: _ownerFormKey,
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.person_pin_circle_rounded, color: BakeryTheme.accent(context)),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      strings.contactOwner,
-                                      style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _ownerNameController,
-                                  decoration: bakeryInputDecoration(context, label: strings.yourName, icon: Icons.person_outline),
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? strings.fillAllFields : null,
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _ownerMessageController,
-                                  maxLines: 4,
-                                  decoration: bakeryInputDecoration(context, label: strings.yourMessage, icon: Icons.chat_bubble_outline),
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? strings.fillAllFields : null,
-                                ),
-                                const SizedBox(height: 14),
-                                _OrderSheetActionButton(
-                                  primary: true,
-                                  icon: Icons.send_rounded,
-                                  label: strings.sendToOwner,
-                                  onPressed: _sendToOwner,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _OrdersPanel(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _chatController,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendChat(),
-                  decoration: bakeryInputDecoration(context, label: '', icon: Icons.chat_outlined).copyWith(
-                    hintText: strings.botTypeHint,
-                    labelText: null,
-                    prefixIcon: Icon(Icons.chat_bubble_outline_rounded, color: BakeryTheme.muted(context), size: 22),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(14),
-                elevation: 2,
-                shadowColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _sendChat,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(Icons.send_rounded, color: Theme.of(context).colorScheme.onPrimary),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmailView(AppStrings strings, {Key? key}) {
+  Widget _buildEmailView(AppStrings strings) {
     return ListView(
-      key: key,
-      controller: _listScroll,
+      controller: _emailScroll,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         Text(
@@ -3801,7 +3701,7 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
     };
   }
 
-  Future<void> _openSheet({required String title, required Widget child}) async {
+  Future<void> _openSheet({required Widget child, String? title}) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -3813,17 +3713,10 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
         return bakeryModalSheetFrame(
           context,
           ListView(
-            padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 18),
-              child,
-            ],
+            padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottom),
+            children: [child],
           ),
+          title: title,
         );
       },
     );
@@ -3898,149 +3791,48 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
     );
   }
 
-  Future<void> _openAccessibilityPanel() async {
-    const accessibilityEmail = 'shilohdhd1@gmail.com';
-    final strings = s;
-    final a11y = AccessibilitySettings.instance;
+  Future<void> _openAccessibilityPanel() => showAccessibilityPanel(context);
 
+  Future<void> _openStoreTermsPanel() async {
+    final strings = s;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (context) {
-        final bottom = MediaQuery.viewPaddingOf(context).bottom;
-        return bakeryModalSheetFrame(
-          context,
-          ListenableBuilder(
-            listenable: a11y,
-            builder: (context, _) {
-              final percent = (a11y.textScale * 100).round();
-              return ListView(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
-                children: [
-                  Text(
-                    strings.accessibilityTitle,
-                    textAlign: TextAlign.center,
-                    style: BakeryTheme.text(context, fontSize: 22, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 18),
-                  _OrdersPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          strings.textSize,
-                          textAlign: TextAlign.center,
-                          style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$percent%',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: BakeryTheme.body(context)),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _OrderSheetActionButton(
-                                icon: Icons.text_decrease,
-                                label: strings.decreaseText,
-                                onPressed: a11y.decreaseText,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _OrderSheetActionButton(
-                                icon: Icons.restart_alt,
-                                label: strings.resetTextSize,
-                                onPressed: a11y.resetText,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _OrderSheetActionButton(
-                                primary: true,
-                                icon: Icons.text_increase,
-                                label: strings.increaseText,
-                                onPressed: a11y.increaseText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    strings.accessibilityBody(accessibilityEmail),
-                    style: TextStyle(fontSize: 14, height: 1.45, color: BakeryTheme.subtitle(context)),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _openFaqPanel() async {
-    final strings = s;
-    final faq = strings.faqItems;
-    final expanded = <int>{};
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: BakeryTheme.softSurface(context),
       builder: (context) {
         final bottom = MediaQuery.viewPaddingOf(context).bottom;
         return _SheetRouteFade(
           child: bakeryModalSheetFrame(
             context,
             _HelpSheetShell(
-              child: StatefulBuilder(
-                builder: (context, setModalState) {
+              child: ListenableBuilder(
+                listenable: StoreTermsStore.instance,
+                builder: (context, _) {
+                  final text = StoreTermsStore.instance.terms.trim();
                   return ListView(
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
                     children: [
-                      _HelpSheetHeader(
-                        icon: Icons.quiz_rounded,
-                        title: strings.faqTitle,
-                        subtitle: strings.faqSub,
-                      ),
-                      const SizedBox(height: 20),
-                      ...List.generate(faq.length, (i) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: i < faq.length - 1 ? 12 : 0),
-                          child: _SheetEntrance(
-                            delayMs: 50 + i * 45,
-                            child: _FaqExpandTile(
-                              index: i,
-                              question: faq[i].q,
-                              answer: faq[i].a,
-                              isOpen: expanded.contains(i),
-                              onTap: () => setModalState(() {
-                                if (expanded.contains(i)) {
-                                  expanded.remove(i);
-                                } else {
-                                  expanded.add(i);
-                                }
-                              }),
-                            ),
-                          ),
-                        );
-                      }),
+                      Center(child: _HelpSheetHeader(icon: Icons.gavel_rounded)),
+                      const SizedBox(height: 16),
+                      if (text.isEmpty)
+                        Text(
+                          strings.managerStoreTermsEmpty,
+                          textAlign: TextAlign.center,
+                          style: BakeryTheme.subtitleText(context, height: 1.4),
+                        )
+                      else
+                        SelectableText(
+                          text,
+                          style: BakeryTheme.text(context, fontSize: 15, height: 1.5),
+                        ),
                     ],
                   );
                 },
               ),
             ),
+            title: strings.storeTerms,
           ),
         );
       },
@@ -4053,7 +3845,7 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: BakeryTheme.softSurface(context),
       builder: (sheetContext) => _SheetRouteFade(
         child: bakeryModalSheetFrame(
           sheetContext,
@@ -4096,44 +3888,64 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
             subtitle: strings.accessibilitySub,
             onTap: _openAccessibilityPanel,
           ),
+          _SettingsMenuItem(
+            icon: Icons.privacy_tip_outlined,
+            title: strings.legalPrivacyPolicy,
+            subtitle: strings.legalPrivacySub,
+            onTap: () => LegalDocumentScreen.open(context, LegalDocumentKind.privacy),
+          ),
+          _SettingsMenuItem(
+            icon: Icons.description_outlined,
+            title: strings.legalTermsOfUse,
+            subtitle: strings.legalTermsSub,
+            onTap: () => LegalDocumentScreen.open(context, LegalDocumentKind.terms),
+          ),
     ];
 
-    return SafeArea(
-      bottom: false,
-      minimum: const EdgeInsets.only(top: 20),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1,
-                children: [
+    final bottomPad = 24 + MediaQuery.paddingOf(context).bottom + kBottomNavigationBarHeight;
+
+    return CustomerTabBody(
+      child: ListenableBuilder(
+        listenable: Listenable.merge([StoreTermsStore.instance, ManagerStore.instance]),
+        builder: (context, _) {
+          final showStoreTerms = StoreTermsStore.instance.hasTerms;
+          return ListView(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, bottomPad),
+            children: [
+              _OrdersPanel(
+                padding: const EdgeInsets.all(12),
+                surfaceColor: BakeryTheme.softSurface(context),
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.02,
+                  children: [
                   ManagerActionSquare(
                     title: strings.contact,
                     subtitle: strings.contactSub,
                     icon: Icons.mail_outline_rounded,
                     colorIndex: 0,
-                    showInfoButton: true,
+                    solidFill: true,
                     onTap: _openContactPanel,
                   ),
-                  ManagerActionSquare(
-                    title: strings.faq,
-                    subtitle: strings.faqSub,
-                    icon: Icons.help_outline_rounded,
-                    colorIndex: 1,
-                    showInfoButton: true,
-                    onTap: _openFaqPanel,
-                  ),
+                  if (showStoreTerms)
+                    ManagerActionSquare(
+                      title: strings.storeTerms,
+                      subtitle: strings.storeTermsSub,
+                      icon: Icons.gavel_outlined,
+                      colorIndex: 4,
+                      solidFill: true,
+                      onTap: _openStoreTermsPanel,
+                    ),
                   ManagerActionSquare(
                     title: strings.leaveReview,
                     subtitle: strings.leaveReviewSub,
                     icon: Icons.star_outline_rounded,
                     colorIndex: 2,
-                    showInfoButton: true,
+                    solidFill: true,
                     onTap: _openReviewPanel,
                   ),
                   ManagerActionSquare(
@@ -4142,17 +3954,8 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                     icon: Icons.admin_panel_settings_outlined,
                     colorIndex: 3,
                     highlighted: true,
-                    showInfoButton: true,
+                    solidFill: true,
                     onTap: () => showManagerLogin(context),
-                  ),
-                  ManagerActionSquare(
-                    title: strings.employeeEntry,
-                    subtitle: strings.employeeEntrySub,
-                    icon: Icons.badge_outlined,
-                    colorIndex: 4,
-                    highlighted: true,
-                    showInfoButton: true,
-                    onTap: () => showEmployeeLogin(context),
                   ),
                   if (SupabaseBootstrap.isReady)
                     ManagerActionSquare(
@@ -4160,10 +3963,11 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                       subtitle: strings.saasCreateStoreSub,
                       icon: Icons.add_business_outlined,
                       colorIndex: 0,
-                      showInfoButton: true,
+                      solidFill: true,
                       onTap: () => openSaasCreateStoreFlow(context),
                     ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 22),
               ...moreSettings.map(
@@ -4173,8 +3977,10 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                 ),
               ),
             ],
-          ),
-        );
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -4275,9 +4081,7 @@ class _SettingsOptionTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: selected
-                ? decor.cardFill
-                : decor.chipFill.withValues(alpha: isDark ? 0.85 : 0.65),
+            color: selected ? decor.cardFill : BakeryTheme.softSurface(context),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: selected ? decor.accent : BakeryTheme.border(context),

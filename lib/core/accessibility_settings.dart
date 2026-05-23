@@ -7,7 +7,7 @@ class AccessibilitySettings extends ChangeNotifier {
   static final AccessibilitySettings instance = AccessibilitySettings._();
   static const _prefKey = 'accessibility_text_scale';
 
-  static const double minScale = 0.9;
+  static const double minScale = 0.8;
   static const double maxScale = 1.5;
   static const double defaultScale = 1.0;
 

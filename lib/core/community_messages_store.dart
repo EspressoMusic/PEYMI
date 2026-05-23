@@ -49,12 +49,25 @@ class CommunityMessagesStore extends ChangeNotifier {
   static const _key = 'community_messages_v1';
 
   final List<CommunityMessage> _messages = [];
+  static const _namePrefKey = 'community_display_name_v1';
+
+  String _displayName = '';
 
   List<CommunityMessage> get messages => List.unmodifiable(_messages);
+
+  /// Oldest first — natural chat order (scroll to latest at bottom).
+  List<CommunityMessage> get messagesChronological {
+    final copy = List<CommunityMessage>.from(_messages);
+    copy.sort((a, b) => a.createdAtMs.compareTo(b.createdAtMs));
+    return copy;
+  }
+
+  String get displayName => _displayName;
 
   Future<void> load() async {
     _messages.clear();
     final prefs = await SharedPreferences.getInstance();
+    _displayName = prefs.getString(_namePrefKey) ?? '';
     final raw = prefs.getString(_key);
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -94,11 +107,24 @@ class CommunityMessagesStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> saveDisplayName(String name) async {
+    _displayName = name.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_namePrefKey, _displayName);
+    notifyListeners();
+  }
+
   Future<void> post({required String author, required String text}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
     final he = AppLocale.instance.isHebrew;
-    final name = author.trim().isEmpty ? (he ? 'אורח' : 'Guest') : author.trim();
+    final typed = author.trim();
+    if (typed.isNotEmpty) {
+      await saveDisplayName(typed);
+    }
+    final name = typed.isNotEmpty
+        ? typed
+        : (_displayName.isNotEmpty ? _displayName : (he ? 'אורח' : 'Guest'));
     _messages.insert(
       0,
       CommunityMessage(

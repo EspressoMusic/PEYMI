@@ -81,17 +81,11 @@ Deno.serve(async (req) => {
       }
     } else if (Deno.env.get("ALLOW_DEV_OTP_RESPONSE") === "true") {
       // Development only — never enable in production.
+      console.warn(`OTP dev fallback (ALLOW_DEV_OTP_RESPONSE=true)`);
       return json({ ok: true, dev_code: code }, 200);
     } else {
-      console.log(`OTP for ${normalized}: ${code} (configure Twilio or ALLOW_DEV_OTP_RESPONSE)`);
-      return json(
-        {
-          ok: true,
-          dev_code: code,
-          message: "SMS not configured — use dev_code (development only)",
-        },
-        200,
-      );
+      console.error("SMS not configured (Twilio or ALLOW_DEV_OTP_RESPONSE)");
+      return json({ error: "Failed to send SMS" }, 502);
     }
 
     return json({ ok: true }, 200);

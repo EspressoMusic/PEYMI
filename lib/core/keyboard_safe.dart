@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme_mode.dart';
+import '../widgets/bakery_sheet_close_bar.dart';
+
 /// Prevents "bottom overflowed" when the soft keyboard opens.
 class KeyboardSafeScroll extends StatelessWidget {
   const KeyboardSafeScroll({
@@ -37,12 +40,13 @@ class KeyboardSafeScroll extends StatelessWidget {
   }
 }
 
-/// Dialog with keyboard-safe scrolling — use for any form inside a dialog.
+/// Dialog with keyboard-safe scrolling and an exit button.
 Future<T?> showBakeryDialog<T>({
   required BuildContext context,
   required Widget child,
   bool barrierDismissible = true,
   Color barrierColor = Colors.black54,
+  bool showCloseButton = true,
 }) {
   return showDialog<T>(
     context: context,
@@ -52,9 +56,34 @@ Future<T?> showBakeryDialog<T>({
       return Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: KeyboardSafeScroll(child: child),
+        child: KeyboardSafeScroll(
+          child: showCloseButton ? BakeryDialogCloseWrap(child: child) : child,
+        ),
       );
     },
+  );
+}
+
+/// Standard bottom sheet with drag handle, close bar, and keyboard-safe height.
+Future<T?> showBakeryBottomSheet<T>({
+  required BuildContext context,
+  required Widget Function(BuildContext sheetContext) builder,
+  String? title,
+  double heightFactor = 0.92,
+  bool showCloseButton = true,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    builder: (sheetContext) => bakeryModalSheetFrame(
+      sheetContext,
+      builder(sheetContext),
+      title: title,
+      heightFactor: heightFactor,
+      showCloseButton: showCloseButton,
+    ),
   );
 }
 
@@ -63,17 +92,37 @@ Widget bakeryModalSheetFrame(
   BuildContext context,
   Widget child, {
   double heightFactor = 0.92,
+  String? title,
+  bool showCloseButton = true,
 }) {
   final keyboard = MediaQuery.viewInsetsOf(context).bottom;
   final height = MediaQuery.sizeOf(context).height * heightFactor;
+
+  final body = showCloseButton
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            BakerySheetCloseBar(title: title),
+            Expanded(child: child),
+          ],
+        )
+      : child;
+
+  final sheetFill = BakeryTheme.softSurface(context);
 
   return AnimatedPadding(
     padding: EdgeInsets.only(bottom: keyboard),
     duration: const Duration(milliseconds: 120),
     curve: Curves.easeOut,
-    child: SizedBox(
-      height: (height - keyboard).clamp(220.0, height),
-      child: child,
+    child: ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: ColoredBox(
+        color: sheetFill,
+        child: SizedBox(
+          height: (height - keyboard).clamp(220.0, height),
+          child: body,
+        ),
+      ),
     ),
   );
 }
