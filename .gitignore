@@ -5,6 +5,7 @@
 supabase/.env
 hosting/bizmi/public/config.js
 docs/config.js
+.dart_defines.env
 
 # Miscellaneous
 .flutter_run.pid
@@ -51,8 +52,8 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
+# Android Studio
+**/android/.kotlin/
 /android/app/profile
 /android/app/release
 /release/*.apk

@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "bakery_shop_app (Supabase from .env)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define-from-file=${workspaceFolder}/.dart_defines.env"
+      ]
+    }
+  ]
+}
