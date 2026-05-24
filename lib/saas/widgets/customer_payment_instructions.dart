@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../../widgets/bakery_celebration.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme_mode.dart';
-import '../data/saas_repository.dart';
 import '../models/business_payment_settings.dart';
 import '../utils/payment_strings.dart';
 
@@ -15,16 +17,12 @@ class CustomerPaymentInstructionsBody extends StatelessWidget {
   Future<void> _openLink(BuildContext context, String raw) async {
     final uri = Uri.tryParse(raw.trim());
     if (uri == null || !uri.hasScheme) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(PaymentStrings.isHebrew ? 'קישור לא תקין' : 'Invalid payment link')),
-      );
+      unawaited(showBakeryNoticeBanner(context, title: PaymentStrings.isHebrew ? 'קישור לא תקין' : 'Invalid payment link', isError: true));
       return;
     }
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(PaymentStrings.isHebrew ? 'לא ניתן לפתוח קישור' : 'Could not open link')),
-        );
+        unawaited(showBakeryNoticeBanner(context, title: PaymentStrings.isHebrew ? 'לא ניתן לפתוח קישור' : 'Could not open link', isError: true));
       }
     }
   }
@@ -77,10 +75,17 @@ Future<void> showCustomerPaymentSuccessDialog({
   required String businessId,
   required bool isAppointment,
 }) async {
-  final settings = await SaasRepository.instance.fetchPaymentSettings(businessId);
   if (!context.mounted) return;
 
-  final showPayment = settings?.paymentEnabled == true;
+  if (isAppointment) {
+    await showBakerySuccessCelebration(
+      context,
+      title: PaymentStrings.appointmentSuccessTitle,
+      subtitle: PaymentStrings.appointmentSuccessBody,
+      icon: Icons.event_available_rounded,
+    );
+    return;
+  }
 
   await showDialog<void>(
     context: context,
@@ -89,18 +94,9 @@ Future<void> showCustomerPaymentSuccessDialog({
         title: Text(
           isAppointment ? PaymentStrings.appointmentSuccessTitle : PaymentStrings.orderSuccessTitle,
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (showPayment) ...[
-                Text(PaymentStrings.payBusinessHint, style: BakeryTheme.subtitleText(ctx)),
-                const SizedBox(height: 12),
-                CustomerPaymentInstructionsBody(settings: settings!),
-              ],
-            ],
-          ),
+        content: Text(
+          isAppointment ? PaymentStrings.appointmentSuccessBody : PaymentStrings.orderSuccessBody,
+          style: BakeryTheme.subtitleText(ctx, height: 1.45),
         ),
         actions: [
           TextButton(

@@ -1,17 +1,17 @@
-# Build config.js and deploy hosting/bizmi to Vercel (bizmi.app).
-# Prereq: npm i -g vercel  (or npx vercel), and .env with Supabase keys.
+# Build config.js, sync landing assets, deploy hosting/bizmi to Vercel (bizmi.app).
+# Prereq: npm / npx, .env with Supabase keys, Vercel CLI logged in.
 # Usage: .\tools\deploy_bizmi_landing.ps1
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
-& (Join-Path $root "tools\generate_peymii_config.ps1")
+& (Join-Path $root "tools\sync_landing_assets.ps1")
+& (Join-Path $root "tools\generate_bizmi_config.ps1")
 
-# Legacy script — landing now lives in docs/ for GitHub Pages.
-$hosting = Join-Path $root "docs"
+$hosting = Join-Path $root "hosting\bizmi"
 Push-Location $hosting
 try {
-    Write-Host "Deploying from $hosting ..."
+    Write-Host "Deploying bizmi.app from $hosting ..."
     npx --yes vercel deploy --prod
 }
 finally {

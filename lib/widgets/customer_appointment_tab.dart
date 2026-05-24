@@ -42,9 +42,11 @@ class _CustomerAppointmentTabState extends State<CustomerAppointmentTab> {
   }
 
   Future<void> _load() async {
-    await ManagerStore.instance.ensureAppointmentModeReady();
-    if (!ManagerStore.instance.hasLinkedBusiness) {
-      await ManagerStore.instance.ensureDemoStoreLinked(preferAppointments: true);
+    if (ManagerStore.instance.isAppointmentCustomerMode) {
+      await ManagerStore.instance.ensureAppointmentModeReady();
+      if (!ManagerStore.instance.hasLinkedBusiness) {
+        await ManagerStore.instance.ensureDemoStoreLinked(preferAppointments: true);
+      }
     }
     if (!SupabaseBootstrap.isReady) {
       setState(() {

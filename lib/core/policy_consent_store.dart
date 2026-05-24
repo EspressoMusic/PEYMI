@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'safe_change_notifier.dart';
+
 /// Who must accept the privacy policy on first entry.
 enum PolicyAudience {
   customer,
@@ -8,7 +10,7 @@ enum PolicyAudience {
 }
 
 /// Tracks one-time (per version) policy acceptance for customers and business owners.
-class PolicyConsentStore extends ChangeNotifier {
+class PolicyConsentStore extends ChangeNotifier with SafeChangeNotifier {
   PolicyConsentStore._();
 
   static final PolicyConsentStore instance = PolicyConsentStore._();

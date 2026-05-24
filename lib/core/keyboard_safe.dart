@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme_mode.dart';
+import 'app_locale.dart';
+import 'bakery_navigator.dart';
+import '../widgets/bakery_orders_panel.dart';
 import '../widgets/bakery_sheet_close_bar.dart';
 
 /// Prevents "bottom overflowed" when the soft keyboard opens.
@@ -40,27 +43,79 @@ class KeyboardSafeScroll extends StatelessWidget {
   }
 }
 
-/// Dialog with keyboard-safe scrolling and an exit button.
+/// Dialog with keyboard-safe scrolling, opaque panel, and an exit button.
 Future<T?> showBakeryDialog<T>({
   required BuildContext context,
   required Widget child,
   bool barrierDismissible = true,
   Color barrierColor = Colors.black54,
   bool showCloseButton = true,
+  bool wrapInPanel = true,
+  EdgeInsets panelPadding = const EdgeInsets.fromLTRB(22, 8, 22, 20),
 }) {
-  return showDialog<T>(
+  return showOverlaySafely<T>(
     context: context,
-    barrierDismissible: barrierDismissible,
-    barrierColor: barrierColor,
-    builder: (dialogContext) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: KeyboardSafeScroll(
-          child: showCloseButton ? BakeryDialogCloseWrap(child: child) : child,
-        ),
-      );
-    },
+    show: (host) => showDialog<T>(
+      context: host,
+      useRootNavigator: true,
+      barrierDismissible: barrierDismissible,
+      barrierColor: barrierColor,
+      builder: (dialogContext) {
+        final Widget framedChild;
+        if (wrapInPanel) {
+          framedChild = BakeryOrdersPanel(
+            padding: EdgeInsets.zero,
+            child: showCloseButton
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      BakerySheetCloseBar(onClose: () => popRouteSafely(dialogContext)),
+                      Padding(
+                        padding: panelPadding.copyWith(top: 0),
+                        child: child,
+                      ),
+                    ],
+                  )
+                : Padding(
+                    padding: panelPadding,
+                    child: child,
+                  ),
+          );
+        } else if (showCloseButton) {
+          framedChild = BakeryOrdersPanel(
+            padding: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BakerySheetCloseBar(onClose: () => popRouteSafely(dialogContext)),
+                Padding(
+                  padding: panelPadding.copyWith(top: 0),
+                  child: child,
+                ),
+              ],
+            ),
+          );
+        } else {
+          framedChild = child;
+        }
+
+        return Theme(
+          data: Theme.of(dialogContext),
+          child: Directionality(
+            textDirection: AppLocale.instance.direction,
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: KeyboardSafeScroll(
+                child: framedChild,
+              ),
+            ),
+          ),
+        );
+      },
+    ),
   );
 }
 
@@ -72,17 +127,21 @@ Future<T?> showBakeryBottomSheet<T>({
   double heightFactor = 0.92,
   bool showCloseButton = true,
 }) {
-  return showModalBottomSheet<T>(
+  return showOverlaySafely<T>(
     context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-    builder: (sheetContext) => bakeryModalSheetFrame(
-      sheetContext,
-      builder(sheetContext),
-      title: title,
-      heightFactor: heightFactor,
-      showCloseButton: showCloseButton,
+    show: (host) => showModalBottomSheet<T>(
+      context: host,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(host).scaffoldBackgroundColor,
+      builder: (sheetContext) => bakeryModalSheetFrame(
+        sheetContext,
+        builder(sheetContext),
+        title: title,
+        heightFactor: heightFactor,
+        showCloseButton: showCloseButton,
+      ),
     ),
   );
 }
@@ -97,18 +156,27 @@ Widget bakeryModalSheetFrame(
 }) {
   final keyboard = MediaQuery.viewInsetsOf(context).bottom;
   final height = MediaQuery.sizeOf(context).height * heightFactor;
+  final sheetFill = BakeryTheme.softSurface(context);
 
-  final body = showCloseButton
+  final framedBody = showCloseButton
       ? Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            BakerySheetCloseBar(title: title),
+            BakerySheetCloseBar(title: title, barColor: sheetFill),
             Expanded(child: child),
           ],
         )
       : child;
 
-  final sheetFill = BakeryTheme.softSurface(context);
+  // Modal routes can inherit a Theme without [BakeryDecor] while [AppConfigScope]
+  // rebuilds after locale/theme changes — pin the full app theme here.
+  final body = Theme(
+    data: AppThemeController.instance.theme(),
+    child: Directionality(
+      textDirection: AppLocale.instance.direction,
+      child: framedBody,
+    ),
+  );
 
   return AnimatedPadding(
     padding: EdgeInsets.only(bottom: keyboard),

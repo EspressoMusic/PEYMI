@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme_mode.dart';
+import '../../core/bakery_navigator.dart';
+import '../../widgets/bakery_celebration.dart';
 import '../data/saas_repository.dart';
 
 class PhoneVerificationScreen extends StatefulWidget {
@@ -38,12 +42,11 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
         if (devCode != null) _code.text = devCode;
       });
       if (mounted && devCode != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Dev code (no SMS): $devCode'),
-            duration: const Duration(seconds: 12),
-          ),
-        );
+        unawaited(showBakeryNoticeBanner(
+          context,
+          title: 'Dev code (no SMS): $devCode',
+          isError: false,
+        ));
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -63,7 +66,7 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
         code: _code.text.trim(),
       );
       if (!mounted) return;
-      Navigator.pop(context, true);
+      popRouteSafely(context, true);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

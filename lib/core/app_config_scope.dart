@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'accessibility_settings.dart';
 import 'app_locale.dart';
 import 'app_theme_mode.dart';
+import 'bakery_navigator.dart';
 
 /// Theme, text direction, and text scale for a route subtree — without rebuilding [MaterialApp].
 class AppConfigScope extends StatefulWidget {
@@ -15,6 +16,8 @@ class AppConfigScope extends StatefulWidget {
 }
 
 class _AppConfigScopeState extends State<AppConfigScope> {
+  var _rebuildQueued = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,8 +35,13 @@ class _AppConfigScopeState extends State<AppConfigScope> {
   }
 
   void _rebuild() {
-    if (!mounted) return;
-    setState(() {});
+    if (!mounted || _rebuildQueued) return;
+    _rebuildQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await waitForNavigatorSettle();
+      _rebuildQueued = false;
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -46,7 +54,8 @@ class _AppConfigScopeState extends State<AppConfigScope> {
         ? null
         : media.copyWith(textScaler: TextScaler.linear(scale));
 
-    Widget child = Theme(
+    Widget child = AnimatedTheme(
+      duration: Duration.zero,
       data: theme,
       child: Directionality(
         textDirection: locale.direction,

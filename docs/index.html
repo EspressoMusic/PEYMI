@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bizmi — חנות</title>
-  <meta name="description" content="Bizmi — גרסת בדיקה. הורידו את האפליקציה לצפייה בחנות." />
+  <meta name="description" content="Bizmi — הורידו את האפליקציה או המשיכו בגרסת אתר." />
   <meta name="theme-color" content="#4a2c1a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🥐%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
@@ -33,11 +33,16 @@
     <p class="open-app-status" id="open-app-status" hidden></p>
 
     <div class="actions" id="actions-testing">
-      <a class="btn btn-primary" id="apk-download" href="#" hidden>
-        Download Android Test APK
-      </a>
+      <a class="btn btn-primary" id="apk-download" href="#" hidden>הורדת APK</a>
       <p class="apk-unavailable" id="apk-unavailable" hidden></p>
+      <button type="button" class="btn btn-secondary" id="continue-web" hidden>המשך בגרסת אתר</button>
       <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
+    </div>
+
+    <section id="browser-catalog" class="browser-catalog" hidden aria-live="polite"></section>
+
+    <div class="actions" id="web-download-bar" hidden>
+      <a class="btn btn-primary" id="web-apk-link" href="#" hidden>הורדת APK</a>
     </div>
 
     <div class="actions" id="actions-store" hidden>
@@ -48,6 +53,7 @@
       </p>
       <a class="btn btn-primary" id="download-primary" href="#">הורדה</a>
       <a class="btn btn-secondary" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>App Store</a>
+      <button type="button" class="btn btn-secondary" id="browse-browser-store" hidden>המשך בגרסת אתר</button>
       <a class="btn btn-outline" id="open-app-store" href="#">פתיחה באפליקציה</a>
     </div>
 

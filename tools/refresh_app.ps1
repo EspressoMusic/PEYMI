@@ -45,11 +45,83 @@ function Stop-FlutterRun {
 
 function Get-SupabaseDartDefineArgs {
   param([string]$Root)
+  $envFile = Join-Path $Root ".env"
+  if (-not (Test-Path $envFile)) { return @() }
+
+  $url = $null
+  $anon = $null
+  $publicBase = $null
+  $firebaseProject = $null
+  $firebaseApiKey = $null
+  $firebaseAppId = $null
+  $firebaseSender = $null
+  foreach ($line in Get-Content $envFile) {
+    $t = $line.Trim()
+    if ($t -eq '' -or $t.StartsWith('#')) { continue }
+    if ($t -match '^SUPABASE_URL=(.+)$') { $url = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^SUPABASE_ANON_KEY=(.+)$') { $anon = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^PUBLIC_STORE_BASE_URL=(.+)$') { $publicBase = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^FIREBASE_PROJECT_ID=(.+)$') { $firebaseProject = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^FIREBASE_ANDROID_API_KEY=(.+)$') { $firebaseApiKey = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^FIREBASE_ANDROID_APP_ID=(.+)$') { $firebaseAppId = $Matches[1].Trim().Trim('"').Trim("'") }
+    if ($t -match '^FIREBASE_MESSAGING_SENDER_ID=(.+)$') { $firebaseSender = $Matches[1].Trim().Trim('"').Trim("'") }
+  }
+
+  if ([string]::IsNullOrWhiteSpace($url) -or [string]::IsNullOrWhiteSpace($anon)) { return @() }
+  if ($anon -match 'your_anon|paste|replace|PASTE') { return @() }
+
   $syncScript = Join-Path $Root "tools\sync_dart_defines.ps1"
-  if (-not (Test-Path $syncScript)) { return @() }
-  $outFile = & powershell -NoProfile -ExecutionPolicy Bypass -File $syncScript -ProjectRoot $Root
-  if ([string]::IsNullOrWhiteSpace($outFile) -or -not (Test-Path $outFile)) { return @() }
-  return @("--dart-define-from-file=$outFile")
+  if (Test-Path $syncScript) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $syncScript -ProjectRoot $Root | Out-Null
+  }
+
+  $defines = @(
+    "--dart-define=SUPABASE_URL=$url",
+    "--dart-define=SUPABASE_ANON_KEY=$anon"
+  )
+  if (-not [string]::IsNullOrWhiteSpace($publicBase)) {
+    $defines += "--dart-define=PUBLIC_STORE_BASE_URL=$publicBase"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($firebaseProject)) {
+    $defines += "--dart-define=FIREBASE_PROJECT_ID=$firebaseProject"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($firebaseApiKey)) {
+    $defines += "--dart-define=FIREBASE_ANDROID_API_KEY=$firebaseApiKey"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($firebaseAppId)) {
+    $defines += "--dart-define=FIREBASE_ANDROID_APP_ID=$firebaseAppId"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($firebaseSender)) {
+    $defines += "--dart-define=FIREBASE_MESSAGING_SENDER_ID=$firebaseSender"
+  }
+  return $defines
+}
+
+function Test-ApkContainsSupabaseUrl {
+  param(
+    [string]$ApkPath,
+    [string]$ProjectRef
+  )
+  if (-not (Test-Path $ApkPath)) { return $false }
+  if ([string]::IsNullOrWhiteSpace($ProjectRef)) { return $false }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zip = [System.IO.Compression.ZipFile]::OpenRead($ApkPath)
+  try {
+    foreach ($entry in $zip.Entries) {
+      if ($entry.FullName -notmatch 'libapp\.so$|kernel_blob\.bin$') { continue }
+      $stream = $entry.Open()
+      try {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $text = $reader.ReadToEnd()
+        if ($text -match [regex]::Escape($ProjectRef)) { return $true }
+      } finally {
+        $stream.Dispose()
+      }
+    }
+  } finally {
+    $zip.Dispose()
+  }
+  return $false
 }
 
 function Test-FlutterRunAlive {
@@ -140,8 +212,19 @@ function Start-DebugSession {
 Set-Location $ProjectRoot
 
 $supabaseArgs = Get-SupabaseDartDefineArgs -Root $ProjectRoot
+$supabaseProjectRef = $null
 if ($supabaseArgs.Count -gt 0) {
-  Write-Host "Supabase: using SUPABASE_URL + ANON_KEY from .env"
+  foreach ($arg in $supabaseArgs) {
+    if ($arg -match '^--dart-define=SUPABASE_URL=(.+)$') {
+      $u = $Matches[1]
+      if ($u -match 'https?://([^.]+)\.supabase\.co') { $supabaseProjectRef = $Matches[1] }
+      Write-Host "Supabase build: SUPABASE_URL=$u"
+    } elseif ($arg -match '^--dart-define=SUPABASE_ANON_KEY=') {
+      Write-Host "Supabase build: SUPABASE_ANON_KEY=***"
+    } else {
+      Write-Host "Supabase build: $arg"
+    }
+  }
 } else {
   Write-Host "Supabase: not configured - add SUPABASE_ANON_KEY to .env"
 }
@@ -159,10 +242,19 @@ if ($Force) {
   & flutter @buildArgs | Out-Host
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   $apk = Join-Path $ProjectRoot "build\app\outputs\flutter-apk\app-debug.apk"
+  if ($supabaseProjectRef) {
+    $embedded = Test-ApkContainsSupabaseUrl -ApkPath $apk -ProjectRef $supabaseProjectRef
+    if ($embedded) {
+      Write-Host "Supabase verify: project ref '$supabaseProjectRef' found in APK."
+    } else {
+      Write-Host "WARNING: Supabase project ref not found in APK - dart-defines may be missing."
+    }
+  }
   if ($useAndroid) {
     adb -s $DeviceId shell am force-stop $Package 2>$null
-    adb -s $DeviceId uninstall $Package 2>$null
-    adb -s $DeviceId install -r $apk | Out-Host
+    Write-Host "Uninstalling old app ($Package)..."
+    adb -s $DeviceId uninstall $Package 2>$null | Out-Host
+    adb -s $DeviceId install $apk | Out-Host
     adb -s $DeviceId shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "$Package/.MainActivity" | Out-Host
     Write-Host "Force refresh done on $DeviceId. Run .\tools\refresh_app.ps1 once to start fast hot reload."
   } else {

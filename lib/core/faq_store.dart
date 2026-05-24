@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'demo_store.dart';
+import 'safe_change_notifier.dart';
+
 class FaqItem {
   const FaqItem({
     required this.qHe,
@@ -77,11 +80,15 @@ const List<FaqItem> kDefaultFaqItems = [
   ),
 ];
 
-class FaqStore extends ChangeNotifier {
+class FaqStore extends ChangeNotifier with SafeChangeNotifier {
   FaqStore._();
 
   static final FaqStore instance = FaqStore._();
-  static const _key = 'faq_items_v1';
+  static const _legacyKey = 'faq_items_v1';
+
+  static String _keyFor(String slug) => 'faq_items_v1_$slug';
+
+  String? _loadedSlug;
 
   final List<FaqItem> _items = [];
 
@@ -90,10 +97,29 @@ class FaqStore extends ChangeNotifier {
   List<({String q, String a})> displayPairs(bool hebrew) =>
       _items.map((e) => e.pair(hebrew)).toList();
 
-  Future<void> load() async {
+  Future<void> load() async => loadForCurrentStore(null);
+
+  Future<void> loadForCurrentStore(String? slug) async {
+    final normalized = slug?.trim().toLowerCase();
+    _loadedSlug = (normalized != null && normalized.isNotEmpty) ? normalized : null;
     _items.clear();
+
+    final storeSlug = _loadedSlug;
+    if (storeSlug == null) {
+      notifyListeners();
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    var raw = prefs.getString(_keyFor(storeSlug));
+    if ((raw == null || raw.isEmpty) && DemoStore.isDemoSlug(storeSlug)) {
+      final legacy = prefs.getString(_legacyKey);
+      if (legacy != null && legacy.isNotEmpty) {
+        raw = legacy;
+        await prefs.setString(_keyFor(storeSlug), legacy);
+      }
+    }
+
     if (raw != null && raw.isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
@@ -108,16 +134,18 @@ class FaqStore extends ChangeNotifier {
         _items.clear();
       }
     }
-    if (_items.isEmpty) {
+    if (_items.isEmpty && DemoStore.isDemoSlug(storeSlug)) {
       _items.addAll(kDefaultFaqItems);
     }
     notifyListeners();
   }
 
   Future<void> _persist() async {
+    final slug = _loadedSlug;
+    if (slug == null) return;
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_items.map((e) => e.toJson()).toList());
-    await prefs.setString(_key, encoded);
+    await prefs.setString(_keyFor(slug), encoded);
     notifyListeners();
   }
 

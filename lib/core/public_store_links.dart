@@ -1,7 +1,7 @@
 import '../saas/utils/slug_utils.dart';
 
-/// Shareable public store URLs (e.g. https://bizmi.app/{slug}).
-/// Override at build time: --dart-define=PUBLIC_STORE_BASE_URL=https://bizmi.app
+/// Shareable public store URLs (e.g. https://espressomusic.github.io/PEYMI/{slug}).
+/// Override at build time: --dart-define=PUBLIC_STORE_BASE_URL=...
 abstract final class PublicStoreLinks {
   static const baseUrl = String.fromEnvironment(
     'PUBLIC_STORE_BASE_URL',

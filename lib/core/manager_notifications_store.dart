@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'safe_change_notifier.dart';
+
 enum ManagerNotificationKind { order, review, inquiry, problem }
 
 class ManagerNotification {
@@ -68,7 +70,7 @@ class ManagerNotification {
   }
 }
 
-class ManagerNotificationsStore extends ChangeNotifier {
+class ManagerNotificationsStore extends ChangeNotifier with SafeChangeNotifier {
   ManagerNotificationsStore._();
 
   static final ManagerNotificationsStore instance = ManagerNotificationsStore._();

@@ -6,15 +6,6 @@ import 'screens/public_store_screen.dart';
 import 'utils/slug_utils.dart';
 import 'widgets/super_admin_gate.dart';
 
-const storeReservedSlugs = <String>{
-  'super-admin',
-  'settings',
-  'orders',
-  'deals',
-  'catalog',
-  'www',
-};
-
 /// Parses https://bizmi.app/{slug}, bizmi://{slug}, or /{slug}.
 String? storeSlugFromUri(Uri uri) {
   if (uri.scheme == 'bizmi') {

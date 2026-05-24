@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../core/app_locale.dart';
 
 abstract final class AppointmentStrings {
@@ -18,6 +20,8 @@ abstract final class AppointmentStrings {
   static String get noSlots => _he ? 'אין שעות פנויות' : 'No available times';
 
   static String get chooseTime => _he ? 'בחרו שעה' : 'Choose this time';
+  static String get chooseAvailableTime =>
+      _he ? 'בחרו שעה פנויה' : 'Choose an available time';
   static String get notifyIfOpens => _he ? 'הודיעו לי אם יתפנה' : 'Notify me if this opens';
   static String get bookAppointment => _he ? 'קביעת תור' : 'Book appointment';
   static String get yourName => _he ? 'שם מלא *' : 'Your name *';
@@ -36,8 +40,32 @@ abstract final class AppointmentStrings {
       : 'Saved. You will be notified if this slot opens.';
   static String get namePhoneRequired =>
       _he ? 'שם וטלפון נדרשים' : 'Name and phone are required';
-  static String get weekMeetings => _he ? 'מפגשים השבוע' : 'This week';
-  static String get tapDay => _he ? 'לחצו על יום לבחירת שעה' : 'Tap a day to pick a time';
+  static String get weekMeetings => _he ? 'יומן פגישות' : 'Appointment calendar';
+  static String get tapDay =>
+      _he ? 'לחצו על יום כדי לראות שעות פנויות' : 'Tap a day to see available times';
+  static String get backToCalendar => _he ? 'חזרה ללוח שנה' : 'Back to calendar';
+  static String get pastDay => _he ? 'יום שעבר' : 'Past day';
+  static String get slotsForDay => _he ? 'שעות פנויות' : 'Available times';
+
+  static String monthYear(DateTime date) {
+    if (_he) {
+      const months = [
+        'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+        'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+      ];
+      return '${months[date.month - 1]} ${date.year}';
+    }
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  static List<String> get weekdayHeaders {
+    if (!_he) return const ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return const ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+  }
 
   static String dayName(int weekday) {
     if (!_he) {
@@ -60,8 +88,34 @@ abstract final class AppointmentStrings {
   static String get appointmentBookingSub =>
       _he ? 'יומן שבועי, שעות, תורים' : 'Weekly calendar, time slots, bookings';
 
+  static String get serverBookingNotConfigured => _he
+      ? 'לא ניתן לקבוע תור כרגע. נסו שוב בעוד כמה שניות.'
+      : 'Unable to book an appointment right now. Please try again in a few seconds.';
+
   static String friendlyError(Object error) {
+    if (error is FunctionException && error.status == 404) {
+      return serverBookingNotConfigured;
+    }
+    if (error is PostgrestException) {
+      final msg = error.message ?? '';
+      if (error.code == 'PGRST202' ||
+          msg.contains('book_appointment') ||
+          msg.contains('get_public_appointment_schedule') ||
+          msg.contains('get_customer_appointments')) {
+        if (msg.contains('book_appointment')) return serverBookingNotConfigured;
+        if (msg.contains('get_customer_appointments')) {
+          return _he
+              ? 'חסרה פונקציה בשרת. ב-Supabase → SQL Editor הריצו את supabase/APPLY_GET_CUSTOMER_APPOINTMENTS.sql'
+              : 'Server function missing. In Supabase SQL Editor run supabase/APPLY_GET_CUSTOMER_APPOINTMENTS.sql';
+        }
+      }
+    }
     final raw = error.toString().replaceFirst('Exception: ', '').trim();
+    if (raw.contains('book_appointment') ||
+        raw.contains('PGRST202') ||
+        (raw.contains('NOT_FOUND') && raw.contains('function'))) {
+      return serverBookingNotConfigured;
+    }
     if (raw == 'not_appointment_mode') {
       return _he
           ? 'החנות עדיין במצב מוצרים בשרת. בפאנל מנהל → מצב חנות → בחרו "פגישות", או התחברו כבעלים בהגדרות → יצירת חנות.'

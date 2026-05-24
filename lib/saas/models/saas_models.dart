@@ -51,6 +51,7 @@ class SaasBusiness {
     this.pastDueGraceUntil,
     this.storeMode = 'products',
     this.storeTerms,
+    this.contactEmail,
   });
 
   final String id;
@@ -67,6 +68,7 @@ class SaasBusiness {
   final DateTime? pastDueGraceUntil;
   final String storeMode;
   final String? storeTerms;
+  final String? contactEmail;
 
   factory SaasBusiness.fromJson(Map<String, dynamic> json) {
     return SaasBusiness(
@@ -86,6 +88,7 @@ class SaasBusiness {
           : null,
       storeMode: json['store_mode'] as String? ?? 'products',
       storeTerms: json['store_terms'] as String?,
+      contactEmail: json['contact_email'] as String?,
     );
   }
 
@@ -156,6 +159,7 @@ class SaasBusinessAdminRow {
     this.productCount = 0,
     this.orderCount = 0,
     this.appointmentCount = 0,
+    this.customerCount = 0,
   });
 
   final SaasBusiness business;
@@ -163,4 +167,31 @@ class SaasBusinessAdminRow {
   final int productCount;
   final int orderCount;
   final int appointmentCount;
+  final int customerCount;
+}
+
+class StoreInquiryResult {
+  const StoreInquiryResult({
+    required this.ok,
+    required this.emailSent,
+    this.messageId,
+    this.recipient,
+    this.warning,
+  });
+
+  final bool ok;
+  final bool emailSent;
+  final String? messageId;
+  final String? recipient;
+  final String? warning;
+
+  factory StoreInquiryResult.fromJson(Map<String, dynamic> json) {
+    return StoreInquiryResult(
+      ok: json['ok'] == true,
+      emailSent: json['email_sent'] == true,
+      messageId: json['message_id']?.toString(),
+      recipient: json['recipient']?.toString(),
+      warning: json['warning']?.toString() ?? json['error']?.toString(),
+    );
+  }
 }

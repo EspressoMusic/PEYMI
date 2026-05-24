@@ -6,6 +6,7 @@ supabase/.env
 hosting/bizmi/public/config.js
 docs/config.js
 .dart_defines.env
+lib/core/supabase/supabase_embedded.dart
 
 # Miscellaneous
 .flutter_run.pid

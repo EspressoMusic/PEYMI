@@ -1,8 +1,15 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show lerpDouble;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+
+import '../core/app_fonts.dart';
+import '../core/app_locale.dart';
+import '../core/app_theme_mode.dart';
+import '../core/bakery_navigator.dart';
+import '../core/bakery_square_palette.dart';
 
 /// Plays the same success sound used when adding items to the cart.
 Future<void> playBakeryCelebrationSound([AudioPlayer? player]) async {
@@ -15,6 +22,279 @@ Future<void> playBakeryCelebrationSound([AudioPlayer? player]) async {
     if (owned) {
       await p.dispose();
     }
+  }
+}
+
+/// Centered square notice — replaces bottom [SnackBar]s (errors, info, confirmations).
+Future<void> showBakeryNoticeBanner(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  IconData? icon,
+  bool isError = false,
+  bool playSound = false,
+  Duration autoDismissAfter = const Duration(milliseconds: 3000),
+}) {
+  final host = bakeryOverlayContext ?? context;
+  return showOverlaySafely<void>(
+    context: host,
+    show: (overlayHost) => showGeneralDialog<void>(
+      context: overlayHost,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      barrierLabel: title,
+      barrierColor: Colors.black45,
+      transitionDuration: const Duration(milliseconds: 320),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, animation, _, __) {
+        return _CenterSquareBannerOverlay(
+          animation: animation,
+          title: title,
+          subtitle: subtitle,
+          icon: icon ?? (isError ? Icons.error_outline_rounded : Icons.info_outline_rounded),
+          accent: isError ? const Color(0xFFC62828) : BakeryTheme.buttonFill(ctx),
+          showConfetti: false,
+          playSound: playSound,
+          autoDismissAfter: autoDismissAfter,
+        );
+      },
+    ),
+  );
+}
+
+/// Compact success tile: centered square + confetti + celebration sound.
+Future<void> showBakerySuccessCelebration(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  AudioPlayer? player,
+  IconData icon = Icons.check_circle_rounded,
+  bool playSound = true,
+  Duration autoDismissAfter = const Duration(milliseconds: 3200),
+}) {
+  final host = bakeryOverlayContext ?? context;
+  return showOverlaySafely<void>(
+    context: host,
+    show: (overlayHost) => showGeneralDialog<void>(
+      context: overlayHost,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      barrierLabel: title,
+      barrierColor: Colors.black45,
+      transitionDuration: const Duration(milliseconds: 380),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, animation, _, __) {
+        return _CenterSquareBannerOverlay(
+          animation: animation,
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          accent: const Color(0xFF2A9D8F),
+          showConfetti: true,
+          playSound: playSound,
+          player: player,
+          autoDismissAfter: autoDismissAfter,
+        );
+      },
+    ),
+  );
+}
+
+/// Save / update confirmation — small square popup with confetti (not a bottom SnackBar).
+Future<void> showBakeryUpdateBanner(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  IconData icon = Icons.auto_awesome_rounded,
+  bool playSound = true,
+}) =>
+    showBakerySuccessCelebration(
+      context,
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      playSound: playSound,
+      autoDismissAfter: const Duration(milliseconds: 2800),
+    );
+
+Future<void> showOrderSuccessCelebration(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  AudioPlayer? player,
+}) =>
+    showBakerySuccessCelebration(
+      context,
+      title: title,
+      subtitle: subtitle,
+      player: player,
+    );
+
+class _CenterSquareBannerOverlay extends StatefulWidget {
+  const _CenterSquareBannerOverlay({
+    required this.animation,
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    required this.accent,
+    this.showConfetti = false,
+    this.playSound = false,
+    this.player,
+    this.autoDismissAfter = const Duration(milliseconds: 3000),
+  });
+
+  final Animation<double> animation;
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final Color accent;
+  final bool showConfetti;
+  final bool playSound;
+  final AudioPlayer? player;
+  final Duration autoDismissAfter;
+
+  @override
+  State<_CenterSquareBannerOverlay> createState() => _CenterSquareBannerOverlayState();
+}
+
+class _CenterSquareBannerOverlayState extends State<_CenterSquareBannerOverlay> {
+  var _showConfetti = true;
+  var _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.playSound) {
+      unawaited(playBakeryCelebrationSound(widget.player));
+    }
+    if (widget.autoDismissAfter > Duration.zero) {
+      Future<void>.delayed(widget.autoDismissAfter, _dismiss);
+    }
+  }
+
+  void _dismiss() {
+    if (!mounted || _closing) return;
+    _closing = true;
+    popThen(context, () async {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const tileSize = 260.0;
+    final scale = CurvedAnimation(parent: widget.animation, curve: Curves.easeOutBack);
+    final fade = CurvedAnimation(parent: widget.animation, curve: Curves.easeOut);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          onTap: _dismiss,
+          behavior: HitTestBehavior.opaque,
+          child: const SizedBox.expand(),
+        ),
+        if (widget.showConfetti && _showConfetti) ...[
+          IgnorePointer(
+            child: BakeryShapeConfetti(
+              onFinished: () {
+                if (mounted && !_closing) setState(() => _showConfetti = false);
+              },
+            ),
+          ),
+          IgnorePointer(
+            child: BakeryEmojiConfetti(onFinished: () {}),
+          ),
+        ],
+        Center(
+          child: FadeTransition(
+            opacity: fade,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.88, end: 1).animate(scale),
+              child: Material(
+                color: Colors.transparent,
+                child: SizedBox(
+                  width: tileSize,
+                  height: tileSize,
+                  child: BakerySquarePalette.shell(
+                    context: context,
+                    borderRadius: 22,
+                    border: Border.all(color: widget.accent.withValues(alpha: 0.4), width: 1.6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: BakerySquarePalette.shadow(context),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(widget.icon, color: widget.accent, size: 40),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: Text(
+                                    widget.title,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 4,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppFonts.style(
+                                      fontSize: 18,
+                                      fontWeight: AppFonts.bold,
+                                      height: 1.25,
+                                      color: BakeryTheme.body(context),
+                                    ),
+                                  ),
+                                ),
+                                if (widget.subtitle != null && widget.subtitle!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: Text(
+                                      widget.subtitle!,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppFonts.style(
+                                        fontSize: 14,
+                                        fontWeight: AppFonts.medium,
+                                        height: 1.35,
+                                        color: BakeryTheme.subtitle(context),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: _dismiss,
+                              child: Text(
+                                AppLocale.instance.s.confirm,
+                                style: AppFonts.style(fontSize: 15, fontWeight: AppFonts.bold),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

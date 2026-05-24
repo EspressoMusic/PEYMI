@@ -171,3 +171,45 @@ class BusinessAppointmentSettings {
     );
   }
 }
+
+/// Weekly open hours for appointment booking (`business_availability.day_of_week`: 0=Sun … 6=Sat).
+class BusinessAvailabilityRow {
+  const BusinessAvailabilityRow({
+    required this.dayOfWeek,
+    required this.startTime,
+    required this.endTime,
+    required this.isActive,
+  });
+
+  final int dayOfWeek;
+  final String startTime;
+  final String endTime;
+  final bool isActive;
+
+  Map<String, dynamic> toInsertJson(String businessId) => {
+        'business_id': businessId,
+        'day_of_week': dayOfWeek,
+        'start_time': startTime,
+        'end_time': endTime,
+        'is_active': isActive,
+      };
+
+  factory BusinessAvailabilityRow.fromJson(Map<String, dynamic> json) {
+    return BusinessAvailabilityRow(
+      dayOfWeek: json['day_of_week'] as int,
+      startTime: _normalizeTime(json['start_time']),
+      endTime: _normalizeTime(json['end_time']),
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+
+  static String _normalizeTime(Object? raw) {
+    final s = raw?.toString() ?? '09:00';
+    return s.length >= 5 ? s.substring(0, 5) : s;
+  }
+
+  /// Flutter [DateTime.weekday] (Mon=1 … Sun=7) → Postgres day_of_week (Sun=0 … Sat=6).
+  static int flutterWeekdayToPg(int weekday) => weekday % 7;
+
+  static int pgDayToFlutter(int pgDay) => pgDay == 0 ? 7 : pgDay;
+}

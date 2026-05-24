@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'safe_change_notifier.dart';
+
 /// Manager-facing subscription tier (local selection; billing hook later).
 enum ManagerSubscriptionTier {
   none,
@@ -30,7 +32,7 @@ enum ManagerSubscriptionTier {
   }
 }
 
-class ManagerSubscriptionStore extends ChangeNotifier {
+class ManagerSubscriptionStore extends ChangeNotifier with SafeChangeNotifier {
   ManagerSubscriptionStore._();
 
   static final ManagerSubscriptionStore instance = ManagerSubscriptionStore._();

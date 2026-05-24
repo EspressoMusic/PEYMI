@@ -1,47 +1,80 @@
 Terms of Use — Peymiz (Bizmi)
-Version: pilot-v1 · Last updated: 20 May 2026
+Version: pilot-v2 · Last updated: 20 May 2026
 
 PILOT / BETA
 The service is experimental, may change or stop, and may have bugs or downtime. Pilot-ready draft — lawyer review required before full public or paid launch.
 
 1. Agreement
-These Terms govern use of Peymiz. Business owners must also accept the Privacy Policy before creating a business.
+These Terms govern use of Peymiz / Bizmi (“Peymiz”, “we”, “us”, “the platform”). If you do not agree, do not use the service. Business owners must also accept the Privacy Policy before creating a business.
 
-2. The service
-Peymiz provides tools for business pages, orders, appointments, and messages. We are a platform, not the seller of each business’s goods/services unless stated otherwise.
+2. The service — platform only
+Peymiz provides software tools for business pages, orders, appointments, deals, messages, and related features. We are a technology platform and intermediary. We are NOT the seller, supplier, or provider of goods or services listed by each business unless we expressly state otherwise in writing.
 
-3. Pilot limitations
-Features may change; outages may occur; support is best-effort; keep your own backups.
+We do not employ, control, or guarantee any business owner using the platform.
 
-4. Business owner responsibilities
-You are responsible for your content, products, services, customers, orders, appointments, legal compliance, and store terms shown to customers.
+3. No liability for seller fraud or misconduct
+TO THE FULLEST EXTENT PERMITTED BY LAW:
 
-5. Acceptable use
-No spam, fraud, illegal activity, abuse, harassment, malware, or unauthorized access. Do not bypass security or phone verification.
+(a) Peymiz is NOT responsible for fraud, scams, theft, misrepresentation, counterfeit goods, false advertising, identity theft, phishing, or any illegal or deceptive conduct by a business owner, customer, or third party using the platform.
 
-6. Suspension and removal
-We may suspend or remove accounts/businesses that violate Terms or pose risk. Unpaid accounts may be suspended when paid plans launch.
+(b) Peymiz is NOT responsible for non-delivery, late delivery, poor quality, unsafe products, missed appointments, pricing errors, refund disputes, chargebacks, or payment failures between customers and businesses.
 
-7. Intellectual property
-Peymiz software/branding belongs to the operator. You retain your content; you grant us a license to host it to operate the service.
+(c) Peymiz does NOT verify the identity, licensing, tax status, insurance, or legal compliance of any business. Listing on Peymiz is not an endorsement.
 
-8. Disclaimer
-Service provided “as is” and “as available” during pilot, without warranties to the extent permitted by law.
+(d) Customers must resolve purchase, service, appointment, and payment disputes directly with the relevant business. Peymiz is not a party to those transactions during the pilot (payments are typically direct between customer and business).
 
-9. Limitation of liability
-We are not liable for indirect damages, lost profits, missed appointments, or business losses during pilot. Direct liability cap: fees paid in prior 12 months or USD $100, unless law requires more.
+(e) We may investigate complaints and suspend or remove accounts we believe violate these Terms or pose risk, but we have NO obligation to monitor all activity or to prevent fraud.
 
-10. Billing and refunds
-No paid plans during pilot. Billing/refund terms will be added before paid launch.
+4. Pilot limitations
+Features may change; outages may occur; support is best-effort; maintain your own backups.
 
-11. Privacy
+5. Business owner responsibilities
+If you operate a business on Peymiz, you are solely responsible for:
+• Your content, products, services, prices, deals, announcements, and appointments
+• Your customers, orders, fulfillment, cancellations, and refunds
+• Compliance with all laws (consumer protection, privacy, tax, licensing, food safety, professional regulations, etc.)
+• Your own privacy notices and store terms shown to customers
+• All fraud prevention and honest dealing with customers
+• Payment collection and disputes with customers (during pilot)
+
+You represent that your listings are accurate and lawful.
+
+6. Business owner indemnity
+You agree to defend, indemnify, and hold harmless Peymiz, its operator, affiliates, and personnel from any claims, damages, losses, fines, penalties, and expenses (including reasonable legal fees) arising from or related to: (a) your business, content, products, services, or appointments; (b) your fraud, negligence, or violation of law; (c) disputes with your customers; (d) your breach of these Terms; or (e) infringement of third-party rights by your content.
+
+7. Acceptable use
+No spam, fraud, illegal activity, abuse, harassment, malware, or unauthorized access. Do not bypass security or verification. Do not impersonate others or list illegal goods/services.
+
+8. Suspension and removal
+We may suspend or remove businesses or accounts that violate Terms, pose security or legal risk, receive credible fraud reports, or harm users. Unpaid accounts may be suspended when paid plans launch.
+
+9. Intellectual property
+Peymiz software/branding belongs to the operator. You retain your content; you grant us a license to host and display it to operate the service.
+
+10. Disclaimer of warranties
+Service provided “AS IS” and “AS AVAILABLE” without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy of seller listings, or non-infringement, to the extent permitted by law.
+
+11. Limitation of liability
+TO THE FULLEST EXTENT PERMITTED BY LAW, Peymiz and its operator shall NOT be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenue, goodwill, data, missed appointments, or business interruption.
+
+Our aggregate liability for direct damages is limited to the greater of: (a) fees you paid us in the 12 months before the claim, or (b) USD $100, unless mandatory law requires otherwise.
+
+Nothing limits liability where law prohibits (e.g., our own intentional fraud).
+
+12. Billing and refunds
+No paid plans during pilot unless separately agreed. Billing terms will be published before paid launch.
+
+13. Privacy
 See Privacy Policy (incorporated by reference).
 
-12. Changes
-We may update Terms; continued use may mean acceptance where allowed.
+14. Reporting fraud
+Report suspected seller fraud or abuse to: support@peymiz.com
 
-13. Governing law
-To be specified before full public launch.
+15. Changes
+We may update Terms. Continued use may mean acceptance where permitted. Material changes may require renewed acceptance in the app.
 
-14. Contact
+16. Governing law and jurisdiction
+These Terms are governed by the laws of the State of Israel, without regard to conflict-of-law rules. Subject to mandatory consumer protections, disputes with Peymiz shall be brought before the competent courts in Tel Aviv–Jaffa, Israel, unless applicable law requires otherwise.
+
+17. Contact
 support@peymiz.com · privacy@peymiz.com

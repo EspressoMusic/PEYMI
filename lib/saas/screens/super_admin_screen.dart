@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme_mode.dart';
 import '../../core/public_store_links.dart';
+import '../../widgets/bakery_celebration.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 
@@ -29,9 +32,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       final profile = await SaasRepository.instance.fetchCurrentProfile();
       if (profile?.isSuperAdmin != true) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Access denied')),
-          );
+          unawaited(showBakeryNoticeBanner(context, title: 'Access denied', isError: true));
           Navigator.pop(context);
         }
         return;
@@ -45,7 +46,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        unawaited(showBakeryNoticeBanner(context, title: e.toString(), isError: true));
       }
     }
   }

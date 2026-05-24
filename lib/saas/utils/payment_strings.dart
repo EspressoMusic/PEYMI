@@ -39,9 +39,13 @@ abstract final class PaymentStrings {
   static String get appointmentSuccessTitle =>
       isHebrew ? 'התור נקבע בהצלחה' : 'Your appointment was booked successfully';
 
-  static String get payBusinessHint => isHebrew
-      ? 'אנא שלמו ישירות לעסק לפי ההוראות למטה.'
-      : 'Please pay the business directly using the instructions below.';
+  static String get orderSuccessBody => isHebrew
+      ? 'העסק יאשר את ההזמנה בהקדם.'
+      : 'The business will confirm your order shortly.';
+
+  static String get appointmentSuccessBody => isHebrew
+      ? 'העסק יאשר את התור בהקדם.'
+      : 'The business will confirm your appointment shortly.';
 
   static String get payNow => isHebrew ? 'לתשלום' : 'Pay Now';
 

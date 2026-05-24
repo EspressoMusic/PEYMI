@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_creator_unlock.dart';
 import '../../core/app_locale.dart';
 import '../../core/app_theme_mode.dart';
+import '../../core/bakery_navigator.dart';
+import '../../core/manager_store.dart';
 import '../../core/public_store_links.dart';
+import '../../widgets/bakery_celebration.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 
-enum _CreatorStoreFilter { all, paymentIssues, disabled }
+enum _CreatorStoreFilter { all, open, paymentIssues, disabled }
 
 /// App creator dashboard — all businesses (via creator password or super_admin role).
 class AppCreatorDashboardScreen extends StatefulWidget {
@@ -59,11 +64,15 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
   bool _isStoreDisabled(SaasBusiness b) =>
       !b.isActive || b.subscriptionStatus == 'suspended' || b.subscriptionStatus == 'cancelled';
 
+  bool _isStoreOpen(SaasBusiness b) => b.isActive && !_isStoreDisabled(b);
+
   bool _hasPaymentIssue(SaasBusiness b) =>
       _isStoreDisabled(b) || b.subscriptionStatus == 'past_due';
 
   bool _matchesFilter(SaasBusiness b) {
     switch (_filter) {
+      case _CreatorStoreFilter.open:
+        return _isStoreOpen(b);
       case _CreatorStoreFilter.paymentIssues:
         return _hasPaymentIssue(b);
       case _CreatorStoreFilter.disabled:
@@ -86,8 +95,9 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
 
   Future<void> _setStatus(
     SaasBusiness b, {
-    required bool isActive,
-    required String status,
+    bool? isActive,
+    String? status,
+    String? storeMode,
   }) async {
     final password = AppCreatorUnlock.sessionPassword;
     if (password == null) return;
@@ -98,17 +108,14 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
         businessId: b.id,
         isActive: isActive,
         subscriptionStatus: status,
+        storeMode: storeMode,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocale.instance.s.appCreatorUpdateOk)),
-      );
+      await showBakeryUpdateBanner(context, title: AppLocale.instance.s.appCreatorUpdateOk);
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppLocale.instance.s.appCreatorUpdateFailed}: $e')),
-      );
+      unawaited(showBakeryNoticeBanner(context, title: '${AppLocale.instance.s.appCreatorUpdateFailed}: $e', isError: true));
     } finally {
       if (mounted) setState(() => _updatingBusinessId = null);
     }
@@ -138,6 +145,41 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
       ),
     );
     return ok == true;
+  }
+
+  Future<void> _hardLockStore(SaasBusiness b) async {
+    final strings = AppLocale.instance.s;
+    if (!await _confirm(
+      title: strings.appCreatorHardLock,
+      body: strings.appCreatorHardLockConfirm(b.businessName),
+      destructive: true,
+    )) {
+      return;
+    }
+    await _setStatus(b, isActive: false, status: 'cancelled');
+  }
+
+  Future<void> _openFullControl(SaasBusiness b) async {
+    final strings = AppLocale.instance.s;
+    if (!await _confirm(
+      title: strings.appCreatorFullControl,
+      body: strings.appCreatorFullControlConfirm(b.businessName),
+    )) {
+      return;
+    }
+    await ManagerStore.instance.linkOnlineBusiness(
+      id: b.id,
+      slug: b.slug,
+      storeMode: b.storeMode,
+      contactEmail: b.contactEmail,
+    );
+    if (!mounted) return;
+    await pushProgrammerManagerHome();
+  }
+
+  Future<void> _setStoreMode(SaasBusiness b, String mode) async {
+    if (b.storeMode == mode) return;
+    await _setStatus(b, storeMode: mode);
   }
 
   Future<void> _disableForNonPayment(SaasBusiness b) async {
@@ -227,6 +269,12 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
+                  label: strings.appCreatorFilterOpen,
+                  selected: _filter == _CreatorStoreFilter.open,
+                  onTap: () => setState(() => _filter = _CreatorStoreFilter.open),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
                   label: strings.appCreatorFilterPayment,
                   selected: _filter == _CreatorStoreFilter.paymentIssues,
                   onTap: () => setState(() => _filter = _CreatorStoreFilter.paymentIssues),
@@ -313,6 +361,56 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                                       ],
                                     ),
                                     children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              strings.appCreatorStoreDetails,
+                                              style: BakeryTheme.text(context, fontSize: 14, fontWeight: FontWeight.w800),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            _DetailLine(
+                                              label: AppLocale.instance.isHebrew ? 'Slug' : 'Slug',
+                                              value: b.slug,
+                                            ),
+                                            _DetailLine(
+                                              label: AppLocale.instance.isHebrew ? 'בעלים' : 'Owner',
+                                              value: row.ownerEmail ?? '—',
+                                            ),
+                                            if (b.phone?.trim().isNotEmpty == true)
+                                              _DetailLine(
+                                                label: AppLocale.instance.isHebrew ? 'טלפון' : 'Phone',
+                                                value: b.phone!.trim(),
+                                              ),
+                                            if (b.contactEmail?.trim().isNotEmpty == true)
+                                              _DetailLine(
+                                                label: AppLocale.instance.isHebrew ? 'מייל לפניות' : 'Inquiry email',
+                                                value: b.contactEmail!.trim(),
+                                              ),
+                                            if (b.address?.trim().isNotEmpty == true)
+                                              _DetailLine(
+                                                label: AppLocale.instance.isHebrew ? 'כתובת' : 'Address',
+                                                value: b.address!.trim(),
+                                              ),
+                                            if (b.businessType?.trim().isNotEmpty == true)
+                                              _DetailLine(
+                                                label: AppLocale.instance.isHebrew ? 'סוג עסק' : 'Business type',
+                                                value: b.businessType!.trim(),
+                                              ),
+                                            if (b.description?.trim().isNotEmpty == true)
+                                              _DetailLine(
+                                                label: AppLocale.instance.isHebrew ? 'תיאור' : 'Description',
+                                                value: b.description!.trim(),
+                                              ),
+                                            _DetailLine(
+                                              label: AppLocale.instance.isHebrew ? 'מצב חנות' : 'Store mode',
+                                              value: b.storeMode,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                       ListTile(
                                         dense: true,
                                         title: Text(
@@ -327,6 +425,7 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                                             row.productCount,
                                             row.orderCount,
                                             row.appointmentCount,
+                                            row.customerCount,
                                           ),
                                           style: BakeryTheme.subtitleText(context, fontSize: 13),
                                         ),
@@ -336,6 +435,29 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.stretch,
                                           children: [
+                                            FilledButton.icon(
+                                              onPressed: busy ? null : () => _openFullControl(b),
+                                              icon: const Icon(Icons.admin_panel_settings_outlined),
+                                              label: Text(strings.appCreatorFullControl),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: [
+                                                FilterChip(
+                                                  label: Text(strings.appCreatorSetProductsMode),
+                                                  selected: b.isProductMode,
+                                                  onSelected: busy ? null : (_) => _setStoreMode(b, 'products'),
+                                                ),
+                                                FilterChip(
+                                                  label: Text(strings.appCreatorSetAppointmentsMode),
+                                                  selected: b.isAppointmentMode,
+                                                  onSelected: busy ? null : (_) => _setStoreMode(b, 'appointments'),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
                                             if (disabled)
                                               FilledButton.icon(
                                                 onPressed: busy ? null : () => _reenableStore(b),
@@ -365,7 +487,7 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                                                         ),
                                                       )
                                                     : const Icon(Icons.block_rounded),
-                                                label: Text(strings.appCreatorDisableStore),
+                                                label: Text(strings.appCreatorLockStore),
                                               ),
                                               const SizedBox(height: 8),
                                               OutlinedButton.icon(
@@ -374,6 +496,16 @@ class _AppCreatorDashboardScreenState extends State<AppCreatorDashboardScreen> {
                                                     : () => _setStatus(b, isActive: true, status: 'past_due'),
                                                 icon: const Icon(Icons.warning_amber_rounded),
                                                 label: Text(strings.appCreatorMarkPastDue),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              OutlinedButton.icon(
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Theme.of(context).colorScheme.error,
+                                                  side: BorderSide(color: Theme.of(context).colorScheme.error),
+                                                ),
+                                                onPressed: busy ? null : () => _hardLockStore(b),
+                                                icon: const Icon(Icons.gpp_bad_outlined),
+                                                label: Text(strings.appCreatorHardLock),
                                               ),
                                             ],
                                             const SizedBox(height: 10),
@@ -429,6 +561,34 @@ class _FilterChip extends StatelessWidget {
       selected: selected,
       onSelected: (_) => onTap(),
       showCheckmark: false,
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: BakeryTheme.text(context, fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            TextSpan(
+              text: value,
+              style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_locale.dart';
+import 'demo_store.dart';
+import 'safe_change_notifier.dart';
 
 class CommunityMessage {
   const CommunityMessage({
@@ -42,11 +44,15 @@ class CommunityMessage {
   }
 }
 
-class CommunityMessagesStore extends ChangeNotifier {
+class CommunityMessagesStore extends ChangeNotifier with SafeChangeNotifier {
   CommunityMessagesStore._();
 
   static final CommunityMessagesStore instance = CommunityMessagesStore._();
-  static const _key = 'community_messages_v1';
+  static const _legacyKey = 'community_messages_v1';
+
+  static String _keyFor(String slug) => 'community_messages_v1_$slug';
+
+  String? _loadedSlug;
 
   final List<CommunityMessage> _messages = [];
   static const _namePrefKey = 'community_display_name_v1';
@@ -64,11 +70,30 @@ class CommunityMessagesStore extends ChangeNotifier {
 
   String get displayName => _displayName;
 
-  Future<void> load() async {
+  Future<void> load() async => loadForCurrentStore(null);
+
+  Future<void> loadForCurrentStore(String? slug) async {
+    final normalized = slug?.trim().toLowerCase();
+    _loadedSlug = (normalized != null && normalized.isNotEmpty) ? normalized : null;
     _messages.clear();
+
+    final storeSlug = _loadedSlug;
+    if (storeSlug == null) {
+      notifyListeners();
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     _displayName = prefs.getString(_namePrefKey) ?? '';
-    final raw = prefs.getString(_key);
+    var raw = prefs.getString(_keyFor(storeSlug));
+    if ((raw == null || raw.isEmpty) && DemoStore.isDemoSlug(storeSlug)) {
+      final legacy = prefs.getString(_legacyKey);
+      if (legacy != null && legacy.isNotEmpty) {
+        raw = legacy;
+        await prefs.setString(_keyFor(storeSlug), legacy);
+      }
+    }
+
     if (raw != null && raw.isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
@@ -84,7 +109,7 @@ class CommunityMessagesStore extends ChangeNotifier {
         _messages.clear();
       }
     }
-    if (_messages.isEmpty) {
+    if (_messages.isEmpty && DemoStore.isDemoSlug(storeSlug)) {
       final now = DateTime.now().millisecondsSinceEpoch;
       _messages.addAll([
         CommunityMessage(
@@ -140,7 +165,9 @@ class CommunityMessagesStore extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
+    final slug = _loadedSlug;
+    if (slug == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(_messages.map((m) => m.toJson()).toList()));
+    await prefs.setString(_keyFor(slug), jsonEncode(_messages.map((m) => m.toJson()).toList()));
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_locale.dart';
@@ -9,6 +11,7 @@ import '../saas/data/saas_repository.dart';
 import '../saas/models/appointment_models.dart';
 import '../saas/models/saas_models.dart';
 import '../saas/utils/appointment_strings.dart';
+import 'bakery_celebration.dart';
 import 'customer_tab_body.dart';
 
 /// Customer tab: past and upcoming appointments — view details and cancel.
@@ -120,20 +123,19 @@ class _CustomerAppointmentHistoryTabState extends State<CustomerAppointmentHisto
       await SaasRepository.instance.cancelAppointment(ap.id, customerPhone: phone);
       await CustomerAppointmentsStore.instance.markCancelled(ap.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppointmentStrings.isHebrew ? 'התור בוטל' : 'Appointment cancelled',
-            ),
-          ),
+        await showBakeryUpdateBanner(
+          context,
+          title: AppointmentStrings.isHebrew ? 'התור בוטל' : 'Appointment cancelled',
         );
         await _load();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
+        unawaited(showBakeryNoticeBanner(
+          context,
+          title: e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        ));
       }
     }
   }

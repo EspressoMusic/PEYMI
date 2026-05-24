@@ -12,6 +12,7 @@ window.PEYMI_CONFIG = {
   appStoreUrl: "",
   androidPackage: "com.example.bakery_shop_app",
   deepLinkScheme: "bizmi",
-  tryOpenAppFirst: true,
+  defaultLang: "he",
+  tryOpenAppFirst: false,
   redirectDelayMs: 1600,
 };

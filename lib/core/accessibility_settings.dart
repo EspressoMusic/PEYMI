@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AccessibilitySettings extends ChangeNotifier {
+import 'safe_change_notifier.dart';
+
+class AccessibilitySettings extends ChangeNotifier with SafeChangeNotifier {
   AccessibilitySettings._();
 
   static final AccessibilitySettings instance = AccessibilitySettings._();

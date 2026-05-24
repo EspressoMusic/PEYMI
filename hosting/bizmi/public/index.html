@@ -1,37 +1,72 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bizmi — חנות</title>
-  <meta name="description" content="הורידו את אפליקציית Bizmi לצפייה בחנות וקביעת תורים." />
-  <link rel="stylesheet" href="/styles.css" />
-  <script src="/config.js"></script>
+  <meta name="description" content="Bizmi — הורידו את האפליקציה או המשיכו בגרסת אתר." />
+  <meta name="theme-color" content="#4a2c1a" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🥐%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
 </head>
 <body>
+  <div class="bg-glow" aria-hidden="true"></div>
   <main class="card" id="app">
-    <p class="badge">Bizmi</p>
-    <h1 id="store-name">טוען חנות…</h1>
-    <p class="lead" id="store-message">
-      הורידו את האפליקציה כדי לצפות בחנות ולקבוע תורים.
-    </p>
-    <p class="device-hint" id="device-hint"></p>
-    <p class="redirect-status" id="redirect-status" hidden></p>
+    <header class="brand">
+      <span class="brand-icon" aria-hidden="true">🥐</span>
+      <div>
+        <p class="badge" id="brand-badge">Bizmi</p>
+        <p class="brand-tagline" id="brand-tagline"></p>
+      </div>
+    </header>
+
+    <p class="testing-banner" id="testing-banner" hidden></p>
+
+    <div class="store-block">
+      <div class="loader" id="loader" aria-hidden="true"></div>
+      <h1 id="store-name">…</h1>
+      <p class="lead" id="store-message"></p>
+    </div>
+
     <p class="slug" id="store-slug" hidden></p>
-    <div class="actions">
-      <a class="btn btn-primary" id="download-primary" href="#">הורדת האפליקציה</a>
-      <a class="btn" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>App Store</a>
+    <p class="open-app-status" id="open-app-status" hidden></p>
+
+    <div class="actions" id="actions-testing">
+      <a class="btn btn-primary" id="apk-download" href="#" hidden>הורדת APK</a>
+      <p class="apk-unavailable" id="apk-unavailable" hidden></p>
+      <button type="button" class="btn btn-secondary" id="continue-web" hidden>המשך בגרסת אתר</button>
       <a class="btn btn-outline" id="open-app" href="#">פתיחה באפליקציה</a>
     </div>
+
+    <section id="browser-catalog" class="browser-catalog" hidden aria-live="polite"></section>
+
+    <div class="actions" id="web-download-bar" hidden>
+      <a class="btn btn-primary" id="web-apk-link" href="#" hidden>הורדת APK</a>
+    </div>
+
+    <div class="actions" id="actions-store" hidden>
+      <p class="device-hint" id="device-hint"></p>
+      <p class="redirect-status" id="redirect-status" hidden>
+        <span class="pulse-dot"></span>
+        <span id="redirect-text"></span>
+      </p>
+      <a class="btn btn-primary" id="download-primary" href="#">הורדה</a>
+      <a class="btn btn-secondary" id="download-secondary" href="#" target="_blank" rel="noopener" hidden>App Store</a>
+      <button type="button" class="btn btn-secondary" id="browse-browser-store" hidden>המשך בגרסת אתר</button>
+      <a class="btn btn-outline" id="open-app-store" href="#">פתיחה באפליקציה</a>
+    </div>
+
     <p class="error" id="error" hidden></p>
     <footer class="footnote">
-      <a href="/privacy-policy.html">Privacy Policy</a>
+      <a href="privacy-policy.html" class="footnote-link">Privacy Policy</a>
       <span aria-hidden="true"> · </span>
-      <a href="/terms-of-use.html">Terms of Use</a>
+      <a href="terms-of-use.html" class="footnote-link">Terms of Use</a>
       <span aria-hidden="true"> · </span>
-      <a href="/accessibility.html">הצהרת נגישות</a>
+      <a href="accessibility.html" class="footnote-link">הצהרת נגישות</a>
+      <span id="footnote-domain">bizmi.app</span>
     </footer>
   </main>
-  <script src="/landing.js"></script>
+  <script src="landing.js"></script>
 </body>
 </html>

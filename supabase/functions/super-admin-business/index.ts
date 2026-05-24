@@ -6,6 +6,7 @@ type AdminUpdateBody = {
   is_active?: boolean;
   subscription_status?: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   past_due_grace_until?: string | null;
+  store_mode?: "products" | "appointments";
 };
 
 Deno.serve(async (req) => {
@@ -40,6 +41,9 @@ Deno.serve(async (req) => {
     if (body.subscription_status) patch.subscription_status = body.subscription_status;
     if (body.past_due_grace_until !== undefined) {
       patch.past_due_grace_until = body.past_due_grace_until;
+    }
+    if (body.store_mode === "products" || body.store_mode === "appointments") {
+      patch.store_mode = body.store_mode;
     }
 
     const { data, error } = await service

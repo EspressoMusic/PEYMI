@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../widgets/bakery_celebration.dart';
 import '../../core/app_theme_mode.dart';
 import '../data/saas_repository.dart';
 import '../models/appointment_models.dart';
@@ -77,13 +80,11 @@ class _OwnerAppointmentPanelState extends State<OwnerAppointmentPanel> {
     try {
       await SaasRepository.instance.cancelAppointment(a.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Appointment cancelled')),
-        );
+        await showBakeryUpdateBanner(context, title: 'Appointment cancelled');
         _load();
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) unawaited(showBakeryNoticeBanner(context, title: '$e', isError: true));
     }
   }
 
@@ -95,7 +96,7 @@ class _OwnerAppointmentPanelState extends State<OwnerAppointmentPanel> {
       );
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) unawaited(showBakeryNoticeBanner(context, title: '$e', isError: true));
     }
   }
 

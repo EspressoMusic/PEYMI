@@ -17,11 +17,12 @@ class LocaleTranslate {
     return hebrew >= latin;
   }
 
-  static Future<({String he, String en})> toBilingual(String text) async {
+  static Future<({String he, String en})> toBilingual(String text, {bool? sourceHebrew}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return (he: '', en: '');
 
-    if (isPrimarilyHebrew(trimmed)) {
+    final isHe = sourceHebrew ?? isPrimarilyHebrew(trimmed);
+    if (isHe) {
       final en = await _translate(trimmed, 'he|en');
       return (he: trimmed, en: en.isNotEmpty ? en : trimmed);
     }

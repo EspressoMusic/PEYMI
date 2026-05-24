@@ -4,13 +4,30 @@ import '../core/app_creator_unlock.dart';
 import '../core/app_locale.dart';
 import '../core/app_theme_mode.dart';
 import '../core/supabase/supabase_bootstrap.dart';
+import '../widgets/bakery_celebration.dart';
 import 'data/saas_repository.dart';
 import 'screens/app_creator_dashboard_screen.dart';
+
+/// Opens the secret programmer panel (4 taps on English in language settings).
+Future<void> openProgrammerPanelGate(BuildContext context) => openAppCreatorPasswordGate(context);
 
 Future<void> openAppCreatorPasswordGate(BuildContext context) async {
   if (AppCreatorUnlock.isUnlocked) {
     await _openCreatorDashboard(context);
     return;
+  }
+
+  if (SupabaseBootstrap.isReady) {
+    try {
+      final profile = await SaasRepository.instance.fetchCurrentProfile(createIfMissing: false);
+      if (profile?.isSuperAdmin == true) {
+        AppCreatorUnlock.unlockWithVerifiedPassword('super_admin');
+        if (context.mounted) {
+          await _openCreatorDashboard(context);
+        }
+        return;
+      }
+    } catch (_) {}
   }
 
   final strings = AppLocale.instance.s;
@@ -30,9 +47,7 @@ Future<void> openAppCreatorPasswordGate(BuildContext context) async {
           Future<void> submit() async {
             if (!(formKey.currentState?.validate() ?? false) || verifying) return;
             if (!SupabaseBootstrap.isReady) {
-              ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                SnackBar(content: Text(strings.managerShareStoreSupabaseSnack)),
-              );
+              await showBakeryUpdateBanner(sheetCtx, title: strings.managerShareStoreSupabaseSnack);
               return;
             }
             setSheetState(() => verifying = true);
@@ -42,8 +57,10 @@ Future<void> openAppCreatorPasswordGate(BuildContext context) async {
               if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
             } catch (_) {
               if (sheetCtx.mounted) {
-                ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                  SnackBar(content: Text(strings.appCreatorWrongPassword)),
+                await showBakeryNoticeBanner(
+                  sheetCtx,
+                  title: strings.appCreatorWrongPassword,
+                  isError: true,
                 );
               }
             } finally {
@@ -138,9 +155,7 @@ Future<void> openAppCreatorPasswordGate(BuildContext context) async {
 
 Future<void> _openCreatorDashboard(BuildContext context) async {
   if (!SupabaseBootstrap.isReady) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocale.instance.s.managerShareStoreSupabaseSnack)),
-    );
+    await showBakeryUpdateBanner(context, title: AppLocale.instance.s.managerShareStoreSupabaseSnack);
     return;
   }
   await Navigator.of(context).push(

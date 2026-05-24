@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_locale.dart';
 import '../../core/app_theme_mode.dart';
 import '../../core/manager_store.dart';
 import '../../core/policy_consent_store.dart';
-import '../../widgets/policy_consent_gate.dart';
 import '../../core/public_store_links.dart';
+import '../../widgets/copyable_store_link.dart';
+import '../../widgets/policy_consent_gate.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import '../widgets/owner_appointment_panel.dart';
-import '../widgets/owner_payment_settings_panel.dart';
 import '../widgets/store_mode_selector.dart';
+import '../../manager_action_pages.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({required this.business, this.justCreated = false});
@@ -30,12 +32,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   void initState() {
     super.initState();
     _business = widget.business;
-    ManagerStore.instance.linkOnlineBusiness(
-      id: _business.id,
-      slug: _business.slug,
-      storeMode: _business.storeMode,
-    );
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -84,11 +84,25 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 if (widget.justCreated)
                   Card(
                     color: Colors.green.withValues(alpha: 0.12),
-                    child: const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: Text(
-                        'Your store is ready.',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppLocale.instance.s.storeCreatedReady,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            AppLocale.instance.s.storeYourPublicLink,
+                            style: BakeryTheme.subtitleText(context, fontSize: 13),
+                          ),
+                          const SizedBox(height: 4),
+                          CopyableStoreLinkBlock(
+                            link: PublicStoreLinks.publicUrlForSlug(_business.slug),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -129,19 +143,23 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (unlocked) ...[
-                  OwnerPaymentSettingsPanel(business: _business),
-                  const SizedBox(height: 16),
                   if (_business.isAppointmentMode) ...[
                     OwnerAppointmentPanel(business: _business),
                   ] else ...[
                     Text('Products', style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
-                    if (_products.isEmpty)
+                    if (_products.isEmpty) ...[
                       Text(
-                        'No products yet. Add products from your dashboard (coming soon in app UI).',
+                        AppLocale.instance.s.ownerDashboardNoProducts,
                         style: BakeryTheme.subtitleText(context),
-                      )
-                    else
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed: () => openManagerPage(context, const ManagerStorePage()),
+                        icon: const Icon(Icons.add_shopping_cart_outlined, size: 18),
+                        label: Text(AppLocale.instance.s.ownerDashboardGoCatalog),
+                      ),
+                    ] else
                       ..._products.map(
                         (p) => ListTile(
                           title: Text(p.name),
@@ -149,11 +167,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         ),
                       ),
                   ],
-                  const SizedBox(height: 16),
-                  Text(
-                    'Orders, appointments, and messages are stored in Supabase and protected by RLS.',
-                    style: BakeryTheme.subtitleText(context, fontSize: 13),
-                  ),
                 ],
               ],
             ),

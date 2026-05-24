@@ -6,12 +6,15 @@ import 'package:flutter/material.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'safe_change_notifier.dart';
+
 
 
 import 'app_locale.dart';
 
 import 'business_analytics.dart';
 import 'business_store.dart';
+import 'demo_store.dart';
 
 
 
@@ -130,7 +133,7 @@ class CustomerReview {
 
 
 
-class ReviewsStore extends ChangeNotifier {
+class ReviewsStore extends ChangeNotifier with SafeChangeNotifier {
 
   ReviewsStore._();
 
@@ -138,7 +141,11 @@ class ReviewsStore extends ChangeNotifier {
 
   static final ReviewsStore instance = ReviewsStore._();
 
-  static const _storageKey = 'customer_reviews_v1';
+  static const _legacyStorageKey = 'customer_reviews_v1';
+
+  static String _storageKeyFor(String slug) => 'customer_reviews_v1_$slug';
+
+  String? _loadedSlug;
 
 
 
@@ -264,82 +271,66 @@ class ReviewsStore extends ChangeNotifier {
 
 
 
-  Future<void> load() async {
+  Future<void> load() async => loadForCurrentStore(null);
 
-    final prefs = await SharedPreferences.getInstance();
-
-    final raw = prefs.getString(_storageKey);
-
+  Future<void> loadForCurrentStore(String? slug) async {
+    final normalized = slug?.trim().toLowerCase();
+    _loadedSlug = (normalized != null && normalized.isNotEmpty) ? normalized : null;
     _reviews.clear();
 
+    final storeSlug = _loadedSlug;
+    if (storeSlug == null) {
+      notifyListeners();
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    var raw = prefs.getString(_storageKeyFor(storeSlug));
+    if ((raw == null || raw.isEmpty) && DemoStore.isDemoSlug(storeSlug)) {
+      final legacy = prefs.getString(_legacyStorageKey);
+      if (legacy != null && legacy.isNotEmpty) {
+        raw = legacy;
+        await prefs.setString(_storageKeyFor(storeSlug), legacy);
+      }
+    }
+
     if (raw == null || raw.isEmpty) {
-
-      final now = DateTime.now().millisecondsSinceEpoch;
-
-      for (var i = 0; i < _seedReviews.length; i++) {
-
-        final seed = _seedReviews[i];
-
-        _reviews.add(
-
-          CustomerReview(
-
-            nameHe: seed.nameHe,
-
-            nameEn: seed.nameEn,
-
-            rating: seed.rating,
-
-            commentHe: seed.commentHe,
-
-            commentEn: seed.commentEn,
-
-            createdAtMs: now - (i + 2) * 86400000,
-
-          ),
-
-        );
-
-      }
-
-      await _persist();
-
-    } else {
-
-      try {
-
-        final decoded = jsonDecode(raw);
-
-        if (decoded is List) {
-
-          for (final entry in decoded) {
-
-            if (entry is Map<String, dynamic>) {
-
-              _reviews.add(CustomerReview.fromJson(entry));
-
-            } else if (entry is Map) {
-
-              _reviews.add(CustomerReview.fromJson(Map<String, dynamic>.from(entry)));
-
-            }
-
-          }
-
-          _reviews.sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
-
+      if (DemoStore.isDemoSlug(storeSlug)) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        for (var i = 0; i < _seedReviews.length; i++) {
+          final seed = _seedReviews[i];
+          _reviews.add(
+            CustomerReview(
+              nameHe: seed.nameHe,
+              nameEn: seed.nameEn,
+              rating: seed.rating,
+              commentHe: seed.commentHe,
+              commentEn: seed.commentEn,
+              createdAtMs: now - (i + 2) * 86400000,
+            ),
+          );
         }
-
-      } catch (_) {
-
-        _reviews.clear();
-
+        await _persist();
       }
-
+    } else {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final entry in decoded) {
+            if (entry is Map<String, dynamic>) {
+              _reviews.add(CustomerReview.fromJson(entry));
+            } else if (entry is Map) {
+              _reviews.add(CustomerReview.fromJson(Map<String, dynamic>.from(entry)));
+            }
+          }
+          _reviews.sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
+        }
+      } catch (_) {
+        _reviews.clear();
+      }
     }
 
     notifyListeners();
-
   }
 
 
@@ -411,13 +402,11 @@ class ReviewsStore extends ChangeNotifier {
 
 
   Future<void> _persist() async {
-
+    final slug = _loadedSlug;
+    if (slug == null) return;
     final prefs = await SharedPreferences.getInstance();
-
     final encoded = jsonEncode(_reviews.map((r) => r.toJson()).toList());
-
-    await prefs.setString(_storageKey, encoded);
-
+    await prefs.setString(_storageKeyFor(slug), encoded);
   }
 
 }

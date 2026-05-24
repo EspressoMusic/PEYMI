@@ -25,14 +25,32 @@ class CatalogItemImage extends StatelessWidget {
 
   static bool isAssetPath(String path) => path.startsWith('assets/');
 
+  static String normalizePath(String raw) {
+    var p = raw.trim();
+    if (p.startsWith('file://')) p = p.substring(7);
+    return p;
+  }
+
+  static bool isLoadablePath(String raw) {
+    final p = normalizePath(raw);
+    if (p.isEmpty) return false;
+    if (isAssetPath(p)) return true;
+    try {
+      return File(p).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final resolved = normalizePath(path);
     Widget image;
-    if (path.isEmpty) {
+    if (!isLoadablePath(resolved)) {
       image = _fallback(context);
-    } else if (isAssetPath(path)) {
+    } else if (isAssetPath(resolved)) {
       image = Image.asset(
-        path,
+        resolved,
         width: width,
         height: height,
         fit: fit,
@@ -40,7 +58,7 @@ class CatalogItemImage extends StatelessWidget {
       );
     } else {
       image = Image.file(
-        File(path),
+        File(resolved),
         width: width,
         height: height,
         fit: fit,

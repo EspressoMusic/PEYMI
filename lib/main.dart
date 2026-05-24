@@ -4,11 +4,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'core/app_bootstrap.dart';
 import 'core/accessibility_settings.dart';
 import 'core/app_fonts.dart';
 import 'core/app_config_scope.dart';
-import 'core/bakery_navigator.dart' show bakeryNavigatorKey, bakeryRootContext, popRouteSafely, waitForNavigatorSettle;
+import 'core/bakery_navigator.dart' show bakeryNavigatorKey, bakeryRootContext, popRouteSafely, popThen, programmerOpenManagerHome, pushRouteSafely, showOverlaySafely, waitForNavigatorSettle;
 import 'core/app_locale.dart';
 import 'core/bakery_square_palette.dart';
 import 'core/app_theme_mode.dart';
@@ -19,6 +21,7 @@ import 'core/community_messages_store.dart';
 import 'core/faq_store.dart';
 import 'core/store_terms_store.dart';
 import 'core/catalog_data.dart';
+import 'core/demo_store.dart';
 import 'core/keyboard_safe.dart';
 import 'core/manager_notifications_store.dart';
 import 'core/manager_store.dart';
@@ -27,15 +30,18 @@ import 'core/manager_subscription_store.dart';
 import 'core/policy_consent_store.dart';
 import 'core/reviews_store.dart';
 import 'core/staff_auth_config.dart';
-import 'core/stripe_payment_service.dart';
-import 'core/stripe_config.dart';
 import 'manager_action_pages.dart';
 import 'widgets/bakery_celebration.dart';
+import 'widgets/catalog_empty_state.dart';
 import 'widgets/catalog_item_image.dart';
 import 'core/supabase/supabase_bootstrap.dart';
+import 'core/push/deal_push_service.dart';
+import 'firebase_options.dart';
 import 'employee_ui.dart';
 import 'manager_ui.dart';
-import 'core/store_deep_links.dart';
+import 'saas/data/saas_repository.dart';
+import 'saas/manager_login_flow.dart';
+import 'saas/app_creator_flow.dart';
 import 'saas/saas_flow.dart';
 import 'saas/store_routes.dart';
 import 'widgets/bakery_bottom_bar.dart';
@@ -43,37 +49,33 @@ import 'widgets/home_catalog_slot.dart';
 import 'widgets/home_customer_nav_slots.dart';
 import 'widgets/store_announcement_panel.dart';
 import 'widgets/accessibility_panel_sheet.dart';
+import 'widgets/app_creator_six_tap.dart';
 import 'widgets/legal_document_screen.dart';
 import 'widgets/policy_consent_gate.dart';
 import 'widgets/semantic_icon_button.dart';
+import 'widgets/customer_order_contact.dart';
+import 'widgets/customer_name_field.dart';
+import 'widgets/customer_profile_sheet.dart';
 import 'widgets/customer_tab_body.dart';
+import 'core/customer_profile_store.dart';
 
 AppStrings get s => AppLocale.instance.s;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppLocale.instance.load();
-  await AppThemeController.instance.load();
-  await AccessibilitySettings.instance.load();
-  await BusinessStore.instance.load();
-  await OrderRestrictionsStore.instance.load();
-  await ReviewsStore.instance.load();
-  await ManagerStore.instance.load();
-  await CustomerAppointmentsStore.instance.load();
-  await ManagerNotificationsStore.instance.load();
-  await CatalogStore.instance.load();
-  await CommunityMessagesStore.instance.load();
-  await FaqStore.instance.load();
-  await PolicyConsentStore.instance.load();
-  await ManagerSubscriptionStore.instance.load();
-  await StripePaymentService.initialize();
-  await SupabaseBootstrap.init();
-  await ManagerStore.instance.ensureDemoStoreLinked(
-    preferAppointments: ManagerStore.instance.isAppointmentCustomerMode,
-  );
-  await StoreTermsStore.instance.loadForCurrentStore();
-  await StoreDeepLinks.init();
+  if (DefaultFirebaseOptions.isConfigured) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
+  await AppBootstrap.loadCritical();
+  programmerOpenManagerHome = () async {
+    await pushRouteSafely<void>(
+      MaterialPageRoute<void>(builder: (_) => const ManagerHomePage()),
+    );
+  };
   runApp(const BakeryApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    AppBootstrap.startDeferredServices();
+  });
 }
 
 class BakeryApp extends StatelessWidget {
@@ -112,12 +114,16 @@ Future<void> showStaffLogin(
   final formKey = GlobalKey<FormState>();
   var authFailed = false;
 
-  void tryLogin(BuildContext dialogContext, StateSetter setDialogState) {
+  void tryLogin(BuildContext dialogContext, StateSetter setDialogState) async {
     if (!(formKey.currentState?.validate() ?? false)) return;
     final ok = passwordController.text == password;
     if (!ok) {
       setDialogState(() => authFailed = true);
-      formKey.currentState!.validate();
+      await showBakeryNoticeBanner(
+        dialogContext,
+        title: strings.wrongPassword,
+        isError: true,
+      );
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -130,16 +136,15 @@ Future<void> showStaffLogin(
   final approved = await showBakeryDialog<bool>(
     context: dialogHost,
     showCloseButton: false,
+    panelPadding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
     child: StatefulBuilder(
       builder: (dialogContext, setDialogState) {
-        return _OrdersPanel(
-          padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+        return Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
                 Center(
                   child: Container(
                     padding: const EdgeInsets.all(14),
@@ -187,14 +192,11 @@ Future<void> showStaffLogin(
                     icon: Icons.lock_outline,
                   ).copyWith(
                     fillColor: BakeryTheme.cardSurface(dialogContext).withValues(alpha: 0.95),
-                    errorText: authFailed ? strings.wrongPassword : null,
-                    errorStyle: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return strings.enterPassword;
                     }
-                    if (authFailed) return strings.wrongPassword;
                     return null;
                   },
                   onChanged: (_) {
@@ -223,8 +225,7 @@ Future<void> showStaffLogin(
                 ),
               ],
             ),
-          ),
-        );
+          );
       },
     ),
   );
@@ -258,48 +259,15 @@ Future<void> showStaffLogin(
 }
 
 Future<void> showManagerLogin(BuildContext context) async {
-  if (!StaffAuthConfig.isManagerLoginEnabled) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Manager login is not configured for this build.')),
-    );
-    return;
-  }
-  await showStaffLogin(
-    context,
-    loginTitle: s.managerLoginTitle,
-    passwordHint: s.managerPasswordHint,
-    headerIcon: Icons.admin_panel_settings,
-    password: StaffAuthConfig.effectiveManagerPin,
-    alternateActionLabel: s.managerLoginOpenStore,
-    alternateActionIcon: Icons.storefront_outlined,
-    onAlternateAction: (dialogContext) {
-      popRouteSafely(dialogContext, false);
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        final root = bakeryRootContext;
-        if (root == null || !root.mounted) return;
-        await openSaasCreateStoreFlow(root);
-      });
-    },
-    onApproved: (ctx) async {
-      final proceed = await runManagerLoginStoreEntry(ctx);
-      if (!proceed || !ctx.mounted) return;
-      await waitForNavigatorSettle();
-      if (!ctx.mounted) return;
-      final navigator = bakeryNavigatorKey.currentState;
-      if (navigator == null) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        navigator.push<void>(
-          MaterialPageRoute<void>(builder: (_) => const ManagerHomePage()),
-        );
-      });
-    },
-  );
+  await runManagerLoginFromSettings(context);
 }
 
 Future<void> showEmployeeLogin(BuildContext context) async {
   if (!StaffAuthConfig.isEmployeeLoginEnabled) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Employee login is not configured for this build.')),
+    await showBakeryNoticeBanner(
+      context,
+      title: 'Employee login is not configured for this build.',
+      isError: true,
     );
     return;
   }
@@ -355,9 +323,7 @@ class _ReviewSheetState extends State<_ReviewSheet> {
     if (!mounted) return;
     Navigator.pop(context);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.thanksReview)),
-      );
+      await showBakeryUpdateBanner(context, title: s.thanksReview);
     }
   }
 
@@ -454,16 +420,6 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                           icon: Icons.send_rounded,
                           label: strings.submitReview,
                           onPressed: _submitting ? null : _submit,
-                        ),
-                        const SizedBox(height: 8),
-                        Center(
-                          child: TextButton(
-                            onPressed: _submitting ? null : () => Navigator.pop(context),
-                            child: Text(
-                              strings.skip,
-                              style: BakeryTheme.subtitleText(context, fontWeight: FontWeight.w700),
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -599,30 +555,49 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
   static const _legacyRedeemedDealsKey = 'redeemed_deal_ids';
   static const _dismissedAnnouncementKey = 'customer_dismissed_announcement_revision';
   static const _redeemVisibleFor = Duration(hours: 2);
-  static const int _navDealsIndex = 1;
+  static const List<int> _appointmentNavPages = [0, 2, 3];
+  static const int _appointmentLastNavIndex = 2;
 
   int _selectedIndex = _pageCatalog;
   final Map<String, int> _redeemedDealsAt = {};
   bool _dealAlertBadge = false;
   int _dismissedAnnouncementRevision = 0;
+  int? _announcementPopupShownRevision;
   Timer? _redeemExpiryTimer;
+  var _wasAppointmentCustomerMode = false;
 
-  int _navBarIndex(int pageIndex) =>
-      AppLocale.instance.isHebrew ? (_pageCatalog - pageIndex) : pageIndex;
+  int _navBarIndex(int pageIndex) {
+    if (ManagerStore.instance.isAppointmentCustomerMode) {
+      final slot = _appointmentNavPages.indexOf(pageIndex);
+      return slot >= 0 ? slot : _appointmentLastNavIndex;
+    }
+    return pageIndex;
+  }
 
-  int _pageIndexFromNav(int navIndex) =>
-      AppLocale.instance.isHebrew ? (_pageCatalog - navIndex) : navIndex;
+  int _pageIndexFromNav(int navIndex) {
+    if (ManagerStore.instance.isAppointmentCustomerMode) {
+      return _appointmentNavPages[navIndex.clamp(0, _appointmentLastNavIndex)];
+    }
+    return navIndex;
+  }
   final Map<String, int> _cartQuantities = {};
   final AudioPlayer _cartSoundPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
+    _wasAppointmentCustomerMode = ManagerStore.instance.isAppointmentCustomerMode;
+    if (_wasAppointmentCustomerMode) {
+      _selectedIndex = _pageCatalog;
+      unawaited(ManagerStore.instance.ensureAppointmentModeReady());
+    }
     _loadRedeemedDeals();
-    _loadAnnouncementDismissal();
     _redeemExpiryTimer = Timer.periodic(const Duration(minutes: 1), (_) => _onDealsMaintenanceTick());
     ManagerStore.instance.addListener(_onManagerStoreChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    DealPushService.setOnOpenDealsTab(_openDealsFromPush);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadAnnouncementDismissal();
+      if (!mounted) return;
       _checkDealAlert();
       _checkAnnouncementPopup();
     });
@@ -632,17 +607,18 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final appointment = ManagerStore.instance.isAppointmentCustomerMode;
+      final enteredAppointment = appointment && !_wasAppointmentCustomerMode;
+      _wasAppointmentCustomerMode = appointment;
+      setState(() {
+        if (enteredAppointment || (appointment && _selectedIndex == _pageDeals)) {
+          _selectedIndex = _pageCatalog;
+        }
+      });
       final route = ModalRoute.of(context);
       if (route != null && !route.isCurrent) return;
-      setState(() {});
       _checkAnnouncementPopup();
     });
-  }
-
-  bool get _showStoreAnnouncement {
-    final ann = ManagerStore.instance.storeAnnouncement;
-    if (!ann.hasContent) return false;
-    return ann.revision > _dismissedAnnouncementRevision;
   }
 
   Future<void> _loadAnnouncementDismissal() async {
@@ -661,42 +637,33 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
 
   Future<void> _checkAnnouncementPopup() async {
     final popupRev = await ManagerStore.instance.peekAnnouncementPopupRevision();
-    if (!mounted || popupRev == null) return;
-    if (popupRev <= _dismissedAnnouncementRevision) {
+    if (popupRev != null && popupRev <= _dismissedAnnouncementRevision) {
       await ManagerStore.instance.dismissAnnouncementPopup();
-      return;
     }
+    if (!mounted) return;
+
+    final annRev = ManagerStore.instance.announcementRevision;
+    if (!ManagerStore.instance.storeAnnouncement.hasContent) return;
+    if (annRev <= _dismissedAnnouncementRevision) return;
+    if (_announcementPopupShownRevision == annRev) return;
+
+    _announcementPopupShownRevision = annRev;
     final he = AppLocale.instance.isHebrew;
     final ann = ManagerStore.instance.storeAnnouncement;
     final message = ann.text(he);
+    final host = bakeryRootContext ?? context;
+    if (!host.mounted) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (sheetContext) {
-        return bakeryModalSheetFrame(
-          sheetContext,
-          ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            children: [
-              StoreAnnouncementPanel(
-                message: message,
-                imagePath: ann.imagePath,
-                showHeader: false,
-                compact: true,
-              ),
-            ],
-          ),
-          title: s.storeAnnouncementPopupTitle,
-          heightFactor: 0.55,
-        );
+    await showStoreAnnouncementPopupBanner(
+      host,
+      title: s.storeAnnouncementPopupTitle,
+      message: message,
+      imagePath: ann.imagePath,
+      onDismiss: () {
+        unawaited(_dismissStoreAnnouncement());
+        unawaited(ManagerStore.instance.dismissAnnouncementPopup());
       },
     );
-    await ManagerStore.instance.dismissAnnouncementPopup();
   }
 
   bool _isRedemptionExpired(int redeemedAtMs) =>
@@ -724,17 +691,8 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     setState(() => _dealAlertBadge = true);
     final strings = s;
     final he = AppLocale.instance.isHebrew;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${strings.newDealAlertTitle} ${he ? alert.titleHe : alert.titleEn}'),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: strings.navDeals,
-          onPressed: _openDealsFromAlert,
-        ),
-      ),
-    );
+    final title = '${strings.newDealAlertTitle} ${he ? alert.titleHe : alert.titleEn}';
+    unawaited(showBakeryNoticeBanner(context, title: title));
   }
 
   void _openDealsFromAlert() {
@@ -819,8 +777,9 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
   }
   List<Map<String, dynamic>> get _deals => ManagerStore.instance.allDeals;
   final List<Map<String, dynamic>> _dealOrders = [];
+  final List<Map<String, dynamic>> _userPastOrders = [];
 
-  final List<Map<String, dynamic>> _pastOrders = [
+  static const _demoPastOrders = [
     {
       'id': '#1042',
       'date': '24/04/2026',
@@ -855,12 +814,21 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     },
   ];
 
+  List<Map<String, dynamic>> get _pastOrders {
+    if (DemoStore.isDemoSlug(ManagerStore.instance.linkedBusinessSlug)) {
+      return [..._demoPastOrders, ..._userPastOrders];
+    }
+    return _userPastOrders;
+  }
+
   String _orderStatusLabel(String? key) {
     switch (key) {
       case 'delivered':
         return s.statusDelivered;
       case 'completed':
         return s.statusCompleted;
+      case 'pending':
+        return s.statusPendingApproval;
       case 'completed_deal':
         return s.statusCompletedDeal;
       case 'ready':
@@ -901,6 +869,12 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
             onRedeemDeal: (deal) async {
               final dealId = deal['id'] as String;
               if (_redeemedDealsAt.containsKey(dealId)) return;
+              var dealUnits = 0;
+              for (final raw in deal['items'] as List) {
+                final item = Map<String, dynamic>.from(raw as Map);
+                dealUnits += int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
+              }
+              if (!_canAddDealUnits(context, dealUnits)) return;
               await _markDealRedeemed(dealId);
               setState(() {
                 final dealItems = <Map<String, dynamic>>[];
@@ -925,9 +899,7 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
                 });
               });
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(strings.dealAdded)),
-              );
+              await showBakeryUpdateBanner(context, title: strings.dealAdded);
               setState(() => _selectedIndex = _pageOrders);
             },
           ),
@@ -937,16 +909,13 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
       HomeCatalogSlot(
         needLinkMessage: strings.managerAppointmentsNeedLink,
         catalogPage: ListenableBuilder(
-          listenable: CatalogStore.instance,
+          listenable: Listenable.merge([CatalogStore.instance, ManagerStore.instance]),
           builder: (context, _) => _CatalogPage(
             products: _products,
             drinks: _drinks,
             quantities: _cartQuantities,
-            onSetQuantity: (id, quantity) {
-              setState(() {
-                _setCartQuantity(id, quantity);
-              });
-            },
+            onSetQuantity: (id, quantity) => _applyCartQuantity(context, id, quantity),
+            maxQuantityForItem: _maxCartQuantityForItem,
           ),
         ),
       ),
@@ -959,26 +928,10 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
       child: Scaffold(
         body: Column(
           children: [
-            ListenableBuilder(
-              listenable: ManagerStore.instance,
-              builder: (context, _) {
-                if (!_showStoreAnnouncement) return const SizedBox.shrink();
-                final he = AppLocale.instance.isHebrew;
-                return SafeArea(
-                  bottom: false,
-                  child: StoreAnnouncementPanel(
-                    message: ManagerStore.instance.announcement(he),
-                    imagePath: ManagerStore.instance.announcementImagePath,
-                    onDismiss: _dismissStoreAnnouncement,
-                  ),
-                );
-              },
-            ),
             Expanded(
               child: ListenableBuilder(
                 listenable: ManagerStore.instance,
                 builder: (context, _) {
-                  final he = AppLocale.instance.isHebrew;
                   final announcementPages = List<Widget>.from(pages);
                   final appointmentMode = ManagerStore.instance.isAppointmentCustomerMode;
                   if (!appointmentMode) {
@@ -986,10 +939,6 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
                       orders: _pastOrders,
                       cartItems: cartItems,
                       dealOrders: _dealOrders,
-                      showAnnouncement: _showStoreAnnouncement,
-                      announcementMessage: ManagerStore.instance.announcement(he),
-                      announcementImagePath: ManagerStore.instance.announcementImagePath,
-                      onDismissAnnouncement: _dismissStoreAnnouncement,
                       statusLabel: _orderStatusLabel,
                       onDecrease: (id) {
                         final current = _cartQuantities[id] ?? 0;
@@ -998,31 +947,37 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
                       },
                       onIncrease: (id) {
                         final current = _cartQuantities[id] ?? 0;
-                        if (current >= 10) return;
-                        setState(() => _setCartQuantity(id, current + 1));
+                        if (current >= _maxCartQuantityForItem(id)) return;
+                        _applyCartQuantity(context, id, current + 1);
                       },
-                      onConfirmOrder: () => _confirmOrderWithPayment(context),
+                      onConfirmOrder: () => _confirmOrder(context),
+                      canConfirmOrder: ManagerStore.instance.canCustomerPlaceOrders,
+                      orderBlockedMessage: strings.orderBlockedPreviewStore,
                       onRemoveDeal: (dealId) {
                         setState(() => _dealOrders.removeWhere((d) => d['id'] == dealId));
                       },
-                      onRepeatOrder: (order) {
+                      onRepeatOrder: (order) async {
                         final items =
                             (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+                        var repeatUnits = 0;
+                        for (final item in items) {
+                          repeatUnits += int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
+                        }
+                        if (!_canAddDealUnits(context, repeatUnits)) return;
                         setState(() {
                           for (final item in items) {
                             final id = item['id']?.toString();
                             final qty = int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
                             if (id != null && qty > 0) {
                               final current = _cartQuantities[id] ?? 0;
-                              _cartQuantities[id] = (current + qty).clamp(0, 10);
+                              final next = (current + qty).clamp(0, 10);
+                              _cartQuantities[id] = next;
                             }
                           }
                           _selectedIndex = _pageOrders;
                         });
                         _playCartAddSound();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(strings.repeatOrderAdded)),
-                        );
+                        await showBakeryUpdateBanner(context, title: strings.repeatOrderAdded);
                       },
                     );
                   }
@@ -1037,29 +992,33 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
         ),
         bottomNavigationBar: showBottomBar
             ? ListenableBuilder(
-                listenable: ManagerStore.instance,
+                listenable: Listenable.merge([ManagerStore.instance, AppLocale.instance]),
                 builder: (context, _) {
                   final appointmentTab = ManagerStore.instance.isAppointmentCustomerMode;
+                  final baseItems = appointmentTab
+                      ? [
+                          (icon: Icons.settings, label: strings.navSettings),
+                          (
+                            icon: Icons.event_note_outlined,
+                            label: strings.navMyAppointments,
+                          ),
+                          (
+                            icon: Icons.calendar_month,
+                            label: strings.navAppointments,
+                          ),
+                        ]
+                      : [
+                          (icon: Icons.settings, label: strings.navSettings),
+                          (icon: Icons.local_offer, label: strings.navDeals),
+                          (icon: Icons.receipt_long, label: strings.navOrders),
+                          (icon: Icons.storefront, label: strings.navCatalog),
+                        ];
                   return BakeryBottomBar(
                     selectedIndex: _navBarIndex(_selectedIndex),
                     onSelected: _onBottomNavSelected,
                     badgeIndices:
-                        !appointmentTab && _dealAlertBadge ? {_navDealsIndex} : const {},
-                    items: [
-                      (icon: Icons.settings, label: strings.navSettings),
-                      (
-                        icon: appointmentTab ? Icons.design_services_outlined : Icons.local_offer,
-                        label: appointmentTab ? strings.navServices : strings.navDeals,
-                      ),
-                      (
-                        icon: appointmentTab ? Icons.event_note_outlined : Icons.receipt_long,
-                        label: appointmentTab ? strings.navMyAppointments : strings.navOrders,
-                      ),
-                      (
-                        icon: appointmentTab ? Icons.calendar_month : Icons.storefront,
-                        label: appointmentTab ? strings.navAppointments : strings.navCatalog,
-                      ),
-                    ],
+                        !appointmentTab && _dealAlertBadge ? {_navBarIndex(_pageDeals)} : const {},
+                    items: baseItems,
                   );
                 },
               )
@@ -1073,6 +1032,78 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     final next = quantity.clamp(0, 10);
     _cartQuantities[id] = next;
     if (next > previous) _playCartAddSound();
+  }
+
+  int _dealOrderUnits() {
+    var units = 0;
+    for (final deal in _dealOrders) {
+      final items = (deal['items'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+      for (final item in items) {
+        units += int.tryParse(item['quantity']?.toString() ?? '0') ?? 0;
+      }
+    }
+    return units;
+  }
+
+  int _cartTotalUnits({String? itemId, int? itemQuantity}) {
+    var units = _dealOrderUnits();
+    for (final entry in _cartQuantities.entries) {
+      if (entry.value <= 0) continue;
+      if (itemId != null && entry.key == itemId) {
+        units += itemQuantity ?? entry.value;
+      } else {
+        units += entry.value;
+      }
+    }
+    if (itemId != null && !(_cartQuantities.containsKey(itemId))) {
+      units += itemQuantity ?? 0;
+    }
+    return units;
+  }
+
+  bool _applyCartQuantity(BuildContext context, String id, int quantity) {
+    final maxAllowed = _maxCartQuantityForItem(id);
+    final next = quantity.clamp(0, maxAllowed);
+    final previous = _cartQuantities[id] ?? 0;
+    if (next <= previous) {
+      setState(() => _setCartQuantity(id, next));
+      return true;
+    }
+    final blockMessage = OrderRestrictionsStore.instance.cartUnitsBlockMessage(
+      s,
+      _cartTotalUnits(itemId: id, itemQuantity: next),
+    );
+    if (blockMessage != null) {
+      if (mounted) {
+        unawaited(showBakeryNoticeBanner(context, title: blockMessage, isError: true));
+      }
+      return false;
+    }
+    setState(() => _setCartQuantity(id, next));
+    return true;
+  }
+
+  bool _canAddDealUnits(BuildContext context, int dealUnits) {
+    final blockMessage = OrderRestrictionsStore.instance.cartUnitsBlockMessage(
+      s,
+      _cartTotalUnits() + dealUnits,
+    );
+    if (blockMessage != null) {
+      if (mounted) {
+        unawaited(showBakeryNoticeBanner(context, title: blockMessage, isError: true));
+      }
+      return false;
+    }
+    return true;
+  }
+
+  int _maxCartQuantityForItem(String id) {
+    const perItemCap = 10;
+    final store = OrderRestrictionsStore.instance;
+    if (!store.maxOrdersEnabled) return perItemCap;
+    final withoutThisLine = _cartTotalUnits(itemId: id, itemQuantity: 0);
+    final allowed = store.maxOrders - store.currentProductUnitCount() - withoutThisLine;
+    return allowed.clamp(0, perItemCap);
   }
 
   Future<void> _playCartAddSound() async {
@@ -1101,7 +1132,7 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     return sum;
   }
 
-  Future<void> _confirmOrderWithPayment(BuildContext context) async {
+  Future<void> _confirmOrder(BuildContext context) async {
     final strings = s;
     final cartItems = <Map<String, String>>[
       for (final product in _products)
@@ -1128,10 +1159,24 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     final hasActiveOrder = cartItems.isNotEmpty || _dealOrders.isNotEmpty;
     if (!hasActiveOrder) return;
 
-    final blockMessage = OrderRestrictionsStore.instance.placementBlockMessage(strings);
+    final blockMessage = OrderRestrictionsStore.instance.placementBlockMessage(
+      strings,
+      cartUnits: _cartTotalUnits(),
+    );
     if (blockMessage != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(blockMessage)));
+        unawaited(showBakeryNoticeBanner(context, title: blockMessage, isError: true));
+      }
+      return;
+    }
+
+    if (!ManagerStore.instance.canCustomerPlaceOrders) {
+      if (mounted) {
+        unawaited(showBakeryNoticeBanner(
+          context,
+          title: strings.orderBlockedPreviewStore,
+          isError: true,
+        ));
       }
       return;
     }
@@ -1141,73 +1186,15 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     final totalShekels = cartTotal + dealTotal;
     if (totalShekels <= 0) return;
 
-    final amountAgorot = totalShekels * 100;
+    final contact = await ensureCustomerContactForOrder(context);
+    if (contact == null || !mounted) return;
+
     final orderId = '#${1100 + _pastOrders.length + 1}';
     final summaryParts = <String>[
       for (final item in cartItems) '${item['name']} ×${item['quantity']}',
       for (final dealOrder in _dealOrders)
         (dealOrder['title'] ?? dealOrder['titleHe'] ?? strings.navDeals).toString(),
     ];
-
-    if (StripeConfig.isConfigured) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => PopScope(
-          canPop: false,
-          child: Center(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 16),
-                    Text(strings.paymentProcessing, style: BakeryTheme.text(context)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    bool paid = true;
-    try {
-      if (StripeConfig.isConfigured) {
-        paid = await StripePaymentService.payForOrder(
-          context: context,
-          amountAgorot: amountAgorot,
-          orderId: orderId,
-          description: summaryParts.join(' · '),
-        );
-      } else {
-        await StripePaymentService.payForOrder(
-          context: context,
-          amountAgorot: amountAgorot,
-          orderId: orderId,
-        );
-        return;
-      }
-    } on StripePaymentException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-      paid = false;
-    } finally {
-      if (mounted && StripeConfig.isConfigured) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-    }
-
-    if (!paid || !mounted) {
-      if (mounted && StripeConfig.isConfigured) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.paymentCanceled)));
-      }
-      return;
-    }
 
     var recordedTotal = '$totalShekels₪';
     if (cartItems.isNotEmpty && _dealOrders.isEmpty) {
@@ -1246,7 +1233,7 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
           )
           .toList();
       for (final dealOrder in _dealOrders) {
-        _pastOrders.insert(0, {
+        _userPastOrders.insert(0, {
           'id': '#${1100 + _pastOrders.length + 1}',
           'date': _formatDate(DateTime.now()),
           'total': dealOrder['total'],
@@ -1256,12 +1243,12 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
         });
       }
       if (purchasedItems.isNotEmpty) {
-        _pastOrders.insert(0, {
+        _userPastOrders.insert(0, {
           'id': orderId,
           'date': _formatDate(DateTime.now()),
           'total': '$cartTotal₪',
-          'statusKey': 'completed',
-          'progress': 1.0,
+          'statusKey': 'pending',
+          'progress': 0.25,
           'items': purchasedItems,
         });
       }
@@ -1270,17 +1257,53 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     });
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(strings.orderConfirmed)),
+    await showOrderSuccessCelebration(
+      context,
+      title: strings.orderSuccessTitle,
+      subtitle: strings.orderSuccessBannerSub,
+      player: _cartSoundPlayer,
     );
     if (summaryParts.isNotEmpty) {
       await BusinessStore.instance.recordOrder(
         orderId: orderId,
         total: recordedTotal.isNotEmpty ? recordedTotal : '$cartTotal₪',
         summary: summaryParts.join(' · '),
+        customerName: contact.name,
+        customerPhone: contact.phone,
         lines: orderLines.where((l) => l.quantity > 0).toList(),
       );
     }
+
+    final linkedId = ManagerStore.instance.linkedBusinessId;
+    if (SupabaseBootstrap.isReady &&
+        ManagerStore.instance.hasOnlineLinkedBusiness &&
+        linkedId != null &&
+        linkedId.isNotEmpty &&
+        linkedId != 'local') {
+      try {
+        final orderItems = <Map<String, dynamic>>[
+          for (final item in cartItems)
+            {
+              'product_id': item['id'],
+              'name': item['name'],
+              'qty': int.tryParse(item['quantity'] ?? '0') ?? 1,
+            },
+          for (final dealOrder in dealOrdersSnapshot)
+            {
+              'name': (dealOrder['title'] ?? dealOrder['titleHe'] ?? strings.navDeals).toString(),
+              'qty': 1,
+            },
+        ];
+        await SaasRepository.instance.createOrder(
+          businessId: linkedId,
+          customerName: contact.name,
+          customerPhone: contact.phone,
+          items: orderItems,
+          totalPrice: totalShekels.toDouble(),
+        );
+      } catch (_) {}
+    }
+
     if (mounted) {
       await showReviewDialog(context);
     }
@@ -1291,8 +1314,17 @@ class _BakeryHomePageState extends State<BakeryHomePage> {
     return '${two(date.day)}/${two(date.month)}/${date.year}';
   }
 
+  void _openDealsFromPush() {
+    if (!mounted) return;
+    setState(() {
+      _selectedIndex = _pageDeals;
+      _dealAlertBadge = true;
+    });
+  }
+
   @override
   void dispose() {
+    DealPushService.setOnOpenDealsTab(null);
     ManagerStore.instance.removeListener(_onManagerStoreChanged);
     _redeemExpiryTimer?.cancel();
     _cartSoundPlayer.dispose();
@@ -1308,12 +1340,14 @@ class _CatalogPage extends StatefulWidget {
     required this.drinks,
     required this.quantities,
     required this.onSetQuantity,
+    required this.maxQuantityForItem,
   });
 
   final List<Map<String, String>> products;
   final List<Map<String, String>> drinks;
   final Map<String, int> quantities;
-  final void Function(String id, int quantity) onSetQuantity;
+  final bool Function(String id, int quantity) onSetQuantity;
+  final int Function(String id) maxQuantityForItem;
 
   @override
   State<_CatalogPage> createState() => _CatalogPageState();
@@ -1322,8 +1356,13 @@ class _CatalogPage extends StatefulWidget {
 class _CatalogPageState extends State<_CatalogPage> {
   int _confettiToken = 0;
 
-  Future<int?> _showQuantityPicker({required BuildContext context, required int current}) async {
-    int temp = current;
+  Future<int?> _showQuantityPicker({
+    required BuildContext context,
+    required int current,
+    required int maxQuantity,
+  }) async {
+    final cap = maxQuantity.clamp(0, 10);
+    int temp = current.clamp(0, cap);
     return showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
@@ -1339,10 +1378,10 @@ class _CatalogPageState extends State<_CatalogPage> {
               child: ListWheelScrollView.useDelegate(
                 itemExtent: 44,
                 onSelectedItemChanged: (i) => temp = i,
-                controller: FixedExtentScrollController(initialItem: current.clamp(0, 10)),
+                controller: FixedExtentScrollController(initialItem: temp),
                 childDelegate: ListWheelChildBuilderDelegate(
                   builder: (context, index) {
-                    if (index < 0 || index > 10) return null;
+                    if (index < 0 || index > cap) return null;
                     return Center(
                       child: Text(
                         '$index',
@@ -1364,6 +1403,13 @@ class _CatalogPageState extends State<_CatalogPage> {
   @override
   Widget build(BuildContext context) {
     final items = widget.products;
+    if (items.isEmpty) {
+      return SafeArea(
+        bottom: false,
+        minimum: const EdgeInsets.only(top: 12),
+        child: CatalogEmptyState(message: s.catalogEmptyCustomer),
+      );
+    }
     return Stack(
       children: [
         Column(
@@ -1385,6 +1431,7 @@ class _CatalogPageState extends State<_CatalogPage> {
                   final item = items[index];
                   final id = item['id']!;
                   final qty = widget.quantities[id] ?? 0;
+                  final maxQty = widget.maxQuantityForItem(id);
                   return _AnimatedProductCard(
                     item: item,
                     quantity: qty,
@@ -1392,13 +1439,16 @@ class _CatalogPageState extends State<_CatalogPage> {
                       if (qty > 0) widget.onSetQuantity(id, qty - 1);
                     },
                     onIncrease: () {
-                      if (qty < 10) {
-                        widget.onSetQuantity(id, qty + 1);
+                      if (qty < maxQty && widget.onSetQuantity(id, qty + 1)) {
                         setState(() => _confettiToken++);
                       }
                     },
                     onPickQuantity: () async {
-                      final picked = await _showQuantityPicker(context: context, current: qty);
+                      final picked = await _showQuantityPicker(
+                        context: context,
+                        current: qty,
+                        maxQuantity: maxQty,
+                      );
                       if (picked != null) widget.onSetQuantity(id, picked);
                     },
                   );
@@ -1651,6 +1701,8 @@ class _AnimatedProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final image = item['image']?.trim() ?? '';
+    final emoji = item['emoji'] ?? '🥖';
     return Container(
       decoration: BoxDecoration(
         color: BakerySquarePalette.squareFill(context),
@@ -1671,14 +1723,14 @@ class _AnimatedProductCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: item['image'] != null
-                  ? CatalogItemImage(
-                      path: item['image']!,
+              child: image.isEmpty
+                  ? Center(child: Text(emoji, style: const TextStyle(fontSize: 40)))
+                  : CatalogItemImage(
+                      path: image,
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      emoji: item['emoji'] ?? '🥖',
-                    )
-                  : Center(child: Text(item['emoji'] ?? '🥖', style: const TextStyle(fontSize: 40))),
+                      emoji: emoji,
+                    ),
             ),
           ),
           const SizedBox(height: 4),
@@ -1820,12 +1872,14 @@ class _DealsPage extends StatelessWidget {
                     const SizedBox(height: 6),
                     SizedBox(
                       height: 36,
+                      width: double.infinity,
                       child: FilledButton(
                         onPressed: redeemed ? null : () => onRedeemDeal(deal),
-                        child: Text(
-                          redeemed ? strings.dealRedeemed : strings.redeemDeal,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                        style: FilledButton.styleFrom(
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
+                        child: Text(redeemed ? strings.dealRedeemed : strings.redeemDeal),
                       ),
                     ),
                   ],
@@ -2214,8 +2268,13 @@ class _OrderSheetActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null && !disabled;
-    final scheme = Theme.of(context).colorScheme;
-    final decor = bakeryDecor(context);
+    final fill = primary
+        ? (enabled ? BakeryTheme.buttonFill(context) : BakeryTheme.buttonFill(context).withValues(alpha: 0.38))
+        : Colors.transparent;
+    final labelColor = primary
+        ? BakeryTheme.buttonOnFill(context)
+        : (enabled ? BakeryTheme.buttonFill(context) : BakeryTheme.muted(context));
+    final iconColor = labelColor;
 
     return SemanticIconButton(
       label: label,
@@ -2229,18 +2288,18 @@ class _OrderSheetActionButton extends StatelessWidget {
         child: Ink(
           height: 54,
           decoration: BoxDecoration(
-            gradient: primary && enabled
-                ? LinearGradient(colors: [scheme.primary, scheme.secondary])
-                : null,
-            color: primary
-                ? (enabled ? null : BakeryTheme.softSurface(context))
-                : decor.cardFill.withValues(alpha: enabled ? 0.95 : 0.5),
+            color: fill,
             borderRadius: BorderRadius.circular(18),
-            border: primary ? null : Border.all(color: scheme.outline.withValues(alpha: 0.5), width: 1.4),
-            boxShadow: enabled
+            border: primary
+                ? null
+                : Border.all(
+                    color: BakeryTheme.buttonFill(context).withValues(alpha: enabled ? 1 : 0.35),
+                    width: 1.6,
+                  ),
+            boxShadow: enabled && primary
                 ? [
                     BoxShadow(
-                      color: scheme.primary.withValues(alpha: 0.35),
+                      color: BakeryTheme.buttonFill(context).withValues(alpha: 0.28),
                       blurRadius: 12,
                       offset: const Offset(0, 5),
                     ),
@@ -2250,17 +2309,14 @@ class _OrderSheetActionButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                color: primary ? scheme.onPrimary : (enabled ? decor.accent : decor.mutedText),
-              ),
+              Icon(icon, color: iconColor),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: labelFontSize,
                   fontWeight: FontWeight.w800,
-                  color: primary ? scheme.onPrimary : (enabled ? scheme.onSurface : decor.mutedText),
+                  color: labelColor,
                 ),
               ),
             ],
@@ -2277,14 +2333,12 @@ class _OrdersPage extends StatefulWidget {
     required this.orders,
     required this.cartItems,
     required this.dealOrders,
-    required this.showAnnouncement,
-    required this.announcementMessage,
-    required this.announcementImagePath,
-    required this.onDismissAnnouncement,
     required this.statusLabel,
     required this.onDecrease,
     required this.onIncrease,
     required this.onConfirmOrder,
+    required this.canConfirmOrder,
+    required this.orderBlockedMessage,
     required this.onRemoveDeal,
     required this.onRepeatOrder,
   });
@@ -2292,14 +2346,12 @@ class _OrdersPage extends StatefulWidget {
   final List<Map<String, dynamic>> orders;
   final List<Map<String, String>> cartItems;
   final List<Map<String, dynamic>> dealOrders;
-  final bool showAnnouncement;
-  final String announcementMessage;
-  final String announcementImagePath;
-  final VoidCallback onDismissAnnouncement;
   final void Function(String id) onDecrease;
   final void Function(String id) onIncrease;
   final String Function(String? statusKey) statusLabel;
   final VoidCallback onConfirmOrder;
+  final bool canConfirmOrder;
+  final String orderBlockedMessage;
   final void Function(String dealId) onRemoveDeal;
   final void Function(Map<String, dynamic> order) onRepeatOrder;
 
@@ -2332,9 +2384,7 @@ class _OrdersPageState extends State<_OrdersPage> {
     await prefs.setStringList(_rememberedOrdersKey, _rememberedOrderIds.toList());
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(s.orderRemembered)),
-    );
+    await showBakeryUpdateBanner(context, title: s.orderRemembered, playSound: false);
   }
 
   Future<void> _forgetOrder(String orderId) async {
@@ -2344,9 +2394,7 @@ class _OrdersPageState extends State<_OrdersPage> {
     await prefs.setStringList(_rememberedOrdersKey, _rememberedOrderIds.toList());
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(s.orderRemovedFromMemory)),
-    );
+    await showBakeryUpdateBanner(context, title: s.orderRemovedFromMemory, playSound: false);
   }
 
   Future<void> _openPastOrderSheet(Map<String, dynamic> order) async {
@@ -2422,7 +2470,7 @@ class _OrdersPageState extends State<_OrdersPage> {
                       const SizedBox(height: 12),
                       ...items.map((item) {
                         final id = item['id']?.toString();
-                        final product = id != null ? CatalogData.findById(id) : null;
+                        final product = id != null ? CatalogStore.instance.findById(id) : null;
                         final name = product != null
                             ? CatalogData.name(product)
                             : item['name']?.toString() ?? '';
@@ -2546,10 +2594,25 @@ class _OrdersPageState extends State<_OrdersPage> {
         ),
         const SizedBox(height: 6),
         SizedBox(
-          height: 40,
+          height: 48,
+          width: double.infinity,
           child: FilledButton.icon(
-            onPressed: widget.onConfirmOrder,
-            icon: const Icon(Icons.check_circle, size: 20),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            onPressed: () {
+              if (widget.canConfirmOrder) {
+                widget.onConfirmOrder();
+              } else {
+                unawaited(showBakeryNoticeBanner(
+                  context,
+                  title: widget.orderBlockedMessage,
+                  isError: true,
+                ));
+              }
+            },
+            icon: const Icon(Icons.send_rounded, size: 20),
             label: Text(strings.confirmOrder, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           ),
         ),
@@ -2642,18 +2705,6 @@ class _OrdersPageState extends State<_OrdersPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (widget.showAnnouncement) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: StoreAnnouncementPanel(
-                  message: widget.announcementMessage,
-                  imagePath: widget.announcementImagePath,
-                  onDismiss: widget.onDismissAnnouncement,
-                  compact: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
             _OrdersHubSquare(
               title: strings.activeOrdersSection,
               icon: Icons.shopping_bag_outlined,
@@ -3223,17 +3274,15 @@ class _CommunityMessageBubble extends StatelessWidget {
   }
 }
 
-enum _ContactPanelMode { community, email }
+enum _ContactPanelMode { community, inquiry }
 
 class _ContactPanelSheet extends StatefulWidget {
   const _ContactPanelSheet({
     required this.contactPhone,
-    required this.contactEmail,
     required this.parentContext,
   });
 
   final String contactPhone;
-  final String contactEmail;
   final BuildContext parentContext;
 
   @override
@@ -3243,21 +3292,27 @@ class _ContactPanelSheet extends StatefulWidget {
 class _ContactPanelSheetState extends State<_ContactPanelSheet> {
   _ContactPanelMode _mode = _ContactPanelMode.community;
   final _communityScroll = ScrollController();
-  final _emailScroll = ScrollController();
+  final _inquiryScroll = ScrollController();
 
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _reasonController = TextEditingController();
   final _messageController = TextEditingController();
   final _communityNameController = TextEditingController();
   final _communityMessageController = TextEditingController();
-  final _emailFormKey = GlobalKey<FormState>();
+  final _inquiryFormKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
-    final saved = CommunityMessagesStore.instance.displayName;
-    if (saved.isNotEmpty) {
-      _communityNameController.text = saved;
+    final profile = CustomerProfileStore.instance;
+    if (profile.displayName.isNotEmpty) {
+      _communityNameController.text = profile.displayName;
+      _nameController.text = profile.displayName;
+    } else {
+      final saved = CommunityMessagesStore.instance.displayName;
+      if (saved.isNotEmpty) {
+        _communityNameController.text = saved;
+      }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollCommunityToEnd());
   }
@@ -3265,9 +3320,9 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
   @override
   void dispose() {
     _communityScroll.dispose();
-    _emailScroll.dispose();
+    _inquiryScroll.dispose();
     _nameController.dispose();
-    _emailController.dispose();
+    _reasonController.dispose();
     _messageController.dispose();
     _communityNameController.dispose();
     _communityMessageController.dispose();
@@ -3298,35 +3353,53 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     _scrollCommunityToEnd();
   }
 
-  Future<void> _sendEmail() async {
+  Future<void> _sendInquiry() async {
     final strings = s;
-    if (!(_emailFormKey.currentState?.validate() ?? false)) return;
-    final subject = Uri.encodeComponent(strings.contactTitle);
-    final body = Uri.encodeComponent(
-      '${strings.yourName}: ${_nameController.text.trim()}\n'
-      '${strings.yourEmail}: ${_emailController.text.trim()}\n\n'
-      '${_messageController.text.trim()}',
-    );
-    final uri = Uri.parse('mailto:${widget.contactEmail}?subject=$subject&body=$body');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+    if (!(_inquiryFormKey.currentState?.validate() ?? false)) return;
+    final reason = _reasonController.text.trim();
+    final message = _messageController.text.trim();
+    final customerName = _nameController.text.trim();
+    final store = ManagerStore.instance;
+    final slug = store.linkedBusinessSlug?.trim();
+    final fullMessage = reason.isEmpty ? message : '$reason\n\n$message';
+
+    if (SupabaseBootstrap.isReady && slug != null && slug.isNotEmpty) {
+      try {
+        await SaasRepository.instance.submitStoreInquiry(
+          businessId: store.hasOnlineLinkedBusiness ? store.linkedBusinessId : null,
+          businessSlug: slug,
+          message: fullMessage,
+          customerName: customerName,
+          channel: 'app',
+        );
+      } catch (_) {}
     }
+
     await ManagerStore.instance.logInquiry(
-      message: _messageController.text.trim(),
-      channel: 'email',
-      customerName: _nameController.text.trim(),
+      message: message,
+      reason: reason,
+      channel: 'app',
+      customerName: customerName,
+      customerPhone: CustomerProfileStore.instance.phone,
     );
     await BusinessStore.instance.recordInquiry();
     if (!mounted) return;
-    Navigator.pop(context);
-    if (widget.parentContext.mounted) {
-      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-        SnackBar(content: Text(strings.messageSent)),
-      );
-    }
+    _reasonController.clear();
+    _messageController.clear();
+    await popThen(context, () async {
+      if (widget.parentContext.mounted) {
+        await showBakeryUpdateBanner(widget.parentContext, title: strings.inquirySent);
+      }
+    });
   }
 
   Widget _buildModeSwitcher(AppStrings strings) {
+    final profile = CustomerProfileStore.instance;
+  final hasUnreadReplies = ManagerStore.instance.hasUnreadInquiryRepliesForCustomer(
+      phone: profile.phone,
+      name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : profile.displayName,
+    );
+
     return _OrdersPanel(
       padding: const EdgeInsets.all(5),
       child: Row(
@@ -3342,14 +3415,27 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
           ),
           const SizedBox(width: 6),
           _contactModeChip(
-            selected: _mode == _ContactPanelMode.email,
-            icon: Icons.email_rounded,
-            label: strings.contactEmailTab,
-            onTap: () => setState(() => _mode = _ContactPanelMode.email),
+            selected: _mode == _ContactPanelMode.inquiry,
+            icon: Icons.mark_email_unread_outlined,
+            label: strings.contactInquiryTab,
+            showBadge: hasUnreadReplies,
+            onTap: () {
+              setState(() => _mode = _ContactPanelMode.inquiry);
+              unawaited(_markInquiryRepliesSeen());
+            },
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _markInquiryRepliesSeen() async {
+    final profile = CustomerProfileStore.instance;
+    await ManagerStore.instance.markInquiryRepliesSeenForCustomer(
+      phone: profile.phone,
+      name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : profile.displayName,
+    );
+    if (mounted) setState(() {});
   }
 
   Widget _contactModeChip({
@@ -3357,6 +3443,7 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool showBadge = false,
   }) {
     final accent = BakeryTheme.accent(context);
     return Expanded(
@@ -3378,7 +3465,25 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 18, color: selected ? accent : BakeryTheme.muted(context)),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(icon, size: 18, color: selected ? accent : BakeryTheme.muted(context)),
+                      if (showBadge)
+                        PositionedDirectional(
+                          top: -4,
+                          end: -6,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFD32F2F),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
@@ -3405,51 +3510,56 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     final strings = s;
     final bottom = MediaQuery.viewPaddingOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 12 + bottom),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildModeSwitcher(strings),
-          const SizedBox(height: 14),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  fit: StackFit.expand,
-                  alignment: Alignment.topCenter,
-                  children: [
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                );
-              },
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(animation),
-                    child: child,
-                  ),
-                );
-              },
-              child: switch (_mode) {
-                _ContactPanelMode.community => SizedBox.expand(
-                  key: const ValueKey('community'),
-                  child: _buildCommunityView(strings),
+    return ListenableBuilder(
+      listenable: Listenable.merge([ManagerStore.instance, CustomerProfileStore.instance]),
+      builder: (context, _) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 12 + bottom),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildModeSwitcher(strings),
+              const SizedBox(height: 14),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (currentChild, previousChildren) {
+                    return Stack(
+                      fit: StackFit.expand,
+                      alignment: Alignment.topCenter,
+                      children: [
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    );
+                  },
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: switch (_mode) {
+                    _ContactPanelMode.community => SizedBox.expand(
+                      key: const ValueKey('community'),
+                      child: _buildCommunityView(strings),
+                    ),
+                    _ContactPanelMode.inquiry => SizedBox.expand(
+                      key: const ValueKey('inquiry'),
+                      child: _buildInquiryView(strings),
+                    ),
+                  },
                 ),
-                _ContactPanelMode.email => SizedBox.expand(
-                  key: const ValueKey('email'),
-                  child: _buildEmailView(strings),
-                ),
-              },
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -3616,9 +3726,17 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
     );
   }
 
-  Widget _buildEmailView(AppStrings strings) {
+  Widget _buildInquiryView(AppStrings strings) {
+    final profile = CustomerProfileStore.instance;
+    final customerName = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : profile.displayName;
+    final myInquiries = ManagerStore.instance.inquiriesForCustomer(
+      phone: profile.phone,
+      name: customerName,
+    );
+    final accent = BakeryTheme.accent(context);
+
     return ListView(
-      controller: _emailScroll,
+      controller: _inquiryScroll,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         Text(
@@ -3630,43 +3748,41 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
         _OrdersPanel(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
           child: Form(
-            key: _emailFormKey,
+            key: _inquiryFormKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.mail_outline_rounded, color: BakeryTheme.accent(context)),
-                    const SizedBox(width: 8),
-                    Text(
-                      strings.contactEmailTab,
-                      style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
-                    ),
-                  ],
+                Text(
+                  strings.contactOwner,
+                  textAlign: TextAlign.center,
+                  style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                CustomerNameField(
                   controller: _nameController,
-                  decoration: bakeryInputDecoration(context, label: strings.yourName, icon: Icons.person_outline),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? strings.fillAllFields : null,
+                  label: strings.yourName,
+                  useBakeryDecoration: true,
+                  validator: (v) => CustomerNameField.validate(v, strings),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: bakeryInputDecoration(context, label: strings.yourEmail, icon: Icons.email_outlined),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return strings.fillAllFields;
-                    if (!v.contains('@')) return strings.fillAllFields;
-                    return null;
-                  },
+                  controller: _reasonController,
+                  decoration: bakeryInputDecoration(
+                    context,
+                    label: strings.inquiryReasonLabel,
+                    icon: Icons.subject_outlined,
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? strings.fillAllFields : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _messageController,
                   maxLines: 5,
-                  decoration: bakeryInputDecoration(context, label: strings.yourMessage, icon: Icons.chat_bubble_outline),
+                  decoration: bakeryInputDecoration(
+                    context,
+                    label: strings.yourMessage,
+                    icon: Icons.chat_bubble_outline,
+                  ),
                   validator: (v) => (v == null || v.trim().isEmpty) ? strings.fillAllFields : null,
                 ),
               ],
@@ -3676,19 +3792,220 @@ class _ContactPanelSheetState extends State<_ContactPanelSheet> {
         const SizedBox(height: 16),
         _OrderSheetActionButton(
           primary: true,
-          icon: Icons.email_outlined,
-          label: strings.sendEmail,
-          onPressed: _sendEmail,
+          icon: Icons.send_rounded,
+          label: strings.sendInquiry,
+          onPressed: _sendInquiry,
         ),
+        if (myInquiries.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Text(
+            strings.customerInquiryHistoryTitle,
+            textAlign: TextAlign.center,
+            style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          for (final inq in myInquiries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _OrdersPanel(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (inq.reason?.trim().isNotEmpty == true) ...[
+                      Text(
+                        inq.reason!.trim(),
+                        style: BakeryTheme.text(context, fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    Text(
+                      strings.customerInquiryYourMessage,
+                      style: BakeryTheme.subtitleText(context, fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      inq.message,
+                      style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatCustomerInquiryDate(inq.createdAtMs),
+                      style: BakeryTheme.subtitleText(context, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    if (inq.hasReply) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: accent.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              strings.customerInquiryStoreReply,
+                              style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 13, color: accent),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              inq.replyText!.trim(),
+                              style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
+                            ),
+                            if (inq.replyAtMs != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatCustomerInquiryDate(inq.replyAtMs!),
+                                style: BakeryTheme.subtitleText(context, fontSize: 12),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ] else
+                      Text(
+                        strings.customerInquiryAwaitingReply,
+                        style: BakeryTheme.subtitleText(context, fontSize: 13),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
         const SizedBox(height: 24),
       ],
     );
   }
 }
 
+String _formatCustomerInquiryDate(int createdAtMs) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(createdAtMs);
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} · $h:$m';
+}
+
+class _FaqPanelSheet extends StatefulWidget {
+  const _FaqPanelSheet();
+
+  @override
+  State<_FaqPanelSheet> createState() => _FaqPanelSheetState();
+}
+
+class _FaqPanelSheetState extends State<_FaqPanelSheet> {
+  int? _expandedIndex;
+
+  void _toggle(int index) {
+    setState(() => _expandedIndex = _expandedIndex == index ? null : index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = s;
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+
+    return ListenableBuilder(
+      listenable: Listenable.merge([FaqStore.instance, AppLocale.instance]),
+      builder: (context, _) {
+        final hebrew = AppLocale.instance.isHebrew;
+        final items = FaqStore.instance.items;
+
+        return ListView(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+          children: [
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Text(
+                  strings.managerFaqEmpty,
+                  textAlign: TextAlign.center,
+                  style: BakeryTheme.subtitleText(context, height: 1.4),
+                ),
+              )
+            else
+              ...items.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                final expanded = _expandedIndex == index;
+                return _SheetEntrance(
+                  delayMs: 40 * index.clamp(0, 8),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _OrdersPanel(
+                      padding: EdgeInsets.zero,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _toggle(index),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.question(hebrew),
+                                        style: BakeryTheme.text(
+                                          context,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    AnimatedRotation(
+                                      turns: expanded ? 0.5 : 0,
+                                      duration: const Duration(milliseconds: 220),
+                                      child: Icon(
+                                        Icons.expand_more,
+                                        color: BakeryTheme.accent(context),
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                AnimatedCrossFade(
+                                  firstChild: const SizedBox.shrink(),
+                                  secondChild: Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      item.answer(hebrew),
+                                      style: BakeryTheme.subtitleText(
+                                        context,
+                                        fontSize: 15,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                  ),
+                                  crossFadeState: expanded
+                                      ? CrossFadeState.showSecond
+                                      : CrossFadeState.showFirst,
+                                  duration: const Duration(milliseconds: 220),
+                                  sizeCurve: Curves.easeInOut,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _SettingsHelpPageState extends State<_SettingsHelpPage> {
   static const _contactPhone = '0501234567';
-  static const _contactEmail = 'shilohdhd1@gmail.com';
 
   String _languageSubtitle(AppStrings strings) =>
       AppLocale.instance.isHebrew ? strings.languageCurrentHe : strings.languageCurrentEn;
@@ -3701,141 +4018,194 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
     };
   }
 
-  Future<void> _openSheet({required Widget child, String? title}) async {
-    await showModalBottomSheet<void>(
+  Future<void> _openSheet({
+    required Widget child,
+    String? title,
+    String Function(AppStrings strings)? titleOf,
+  }) async {
+    await showOverlaySafely<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (context) {
-        final bottom = MediaQuery.viewPaddingOf(context).bottom;
-        return bakeryModalSheetFrame(
-          context,
-          ListView(
-            padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottom),
-            children: [child],
-          ),
-          title: title,
-        );
-      },
+      show: (host) => showModalBottomSheet<void>(
+        context: host,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: Theme.of(host).scaffoldBackgroundColor,
+        builder: (context) {
+          final bottom = MediaQuery.viewPaddingOf(context).bottom;
+          return ListenableBuilder(
+            listenable: AppLocale.instance,
+            builder: (context, _) {
+              final strings = AppLocale.instance.s;
+              return bakeryModalSheetFrame(
+                context,
+                ListView(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottom),
+                  children: [child],
+                ),
+                title: titleOf?.call(strings) ?? title,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
-  Future<void> _openLanguagePanel() async {
-    final strings = s;
+  Future<void> _openLanguageAndDisplayPanel() async {
+    final theme = AppThemeController.instance;
+    await showOverlaySafely<void>(
+      context: context,
+      show: (host) => showModalBottomSheet<void>(
+        context: host,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: Theme.of(host).scaffoldBackgroundColor,
+        builder: (context) {
+          final bottom = MediaQuery.viewPaddingOf(context).bottom;
+          return ListenableBuilder(
+            listenable: Listenable.merge([AppLocale.instance, theme]),
+            builder: (context, _) {
+              final strings = AppLocale.instance.s;
+              return bakeryModalSheetFrame(
+                context,
+                ListView(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottom),
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          strings.language,
+                          style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 8),
+                        _SettingsOptionTile(
+                          label: strings.languageCurrentHe,
+                          selected: AppLocale.instance.isHebrew,
+                          icon: Icons.translate,
+                          onTap: () => AppLocale.instance.setHebrew(true),
+                        ),
+                        const SizedBox(height: 10),
+                        AppCreatorSixTapDetector(
+                          requiredTaps: 4,
+                          onTriggered: () => popThen(context, () async {
+                            final sheetHost = bakeryRootContext ?? context;
+                            if (!sheetHost.mounted) return;
+                            await openAppCreatorPasswordGate(sheetHost);
+                          }),
+                          child: _SettingsOptionTile(
+                            label: strings.languageCurrentEn,
+                            selected: AppLocale.instance.isEnglish,
+                            icon: Icons.language,
+                            onTap: () => AppLocale.instance.setHebrew(false),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          strings.displayMode,
+                          style: BakeryTheme.text(context, fontSize: 15, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 8),
+                        _SettingsOptionTile(
+                          label: strings.themeCalm,
+                          subtitle: strings.themeCalmSub,
+                          selected: theme.mode == AppThemeMode.calm,
+                          icon: Icons.spa,
+                          onTap: () => theme.setMode(AppThemeMode.calm),
+                        ),
+                        const SizedBox(height: 10),
+                        _SettingsOptionTile(
+                          label: strings.themeLight,
+                          subtitle: strings.themeLightSub,
+                          selected: theme.mode == AppThemeMode.light,
+                          icon: Icons.light_mode,
+                          onTap: () => theme.setMode(AppThemeMode.light),
+                        ),
+                        const SizedBox(height: 10),
+                        _SettingsOptionTile(
+                          label: strings.themeDark,
+                          subtitle: strings.themeDarkSub,
+                          selected: theme.mode == AppThemeMode.dark,
+                          icon: Icons.dark_mode,
+                          onTap: () => theme.setMode(AppThemeMode.dark),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                title: strings.chooseLanguageAndDisplay,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openAccessibilityAndLegalPanel() async {
     await _openSheet(
-      title: strings.chooseLanguage,
       child: ListenableBuilder(
         listenable: AppLocale.instance,
         builder: (context, _) {
-          return Column(
-            children: [
-              _SettingsOptionTile(
-                label: strings.languageCurrentHe,
-                selected: AppLocale.instance.isHebrew,
-                icon: Icons.translate,
-                onTap: () => AppLocale.instance.setHebrew(true),
-              ),
-              const SizedBox(height: 10),
-              _SettingsOptionTile(
-                label: strings.languageCurrentEn,
-                selected: AppLocale.instance.isEnglish,
-                icon: Icons.language,
-                onTap: () => AppLocale.instance.setHebrew(false),
-              ),
-            ],
+          final strings = AppLocale.instance.s;
+          return Builder(
+            builder: (sheetContext) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    strings.accessibility,
+                    style: BakeryTheme.text(sheetContext, fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsOptionTile(
+                    label: strings.accessibility,
+                    subtitle: strings.accessibilitySub,
+                    selected: false,
+                    icon: Icons.accessible_forward,
+                    onTap: () => popThen(sheetContext, () async {
+                      if (!context.mounted) return;
+                      await showAccessibilityPanel(context);
+                    }),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    strings.legalDocuments,
+                    style: BakeryTheme.text(sheetContext, fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsOptionTile(
+                    label: strings.legalPrivacyPolicy,
+                    subtitle: strings.legalPrivacySub,
+                    selected: false,
+                    icon: Icons.privacy_tip_outlined,
+                    onTap: () => popThen(sheetContext, () async {
+                      if (!context.mounted) return;
+                      LegalDocumentScreen.open(context, LegalDocumentKind.privacy);
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _SettingsOptionTile(
+                    label: strings.legalTermsOfUse,
+                    subtitle: strings.legalTermsSub,
+                    selected: false,
+                    icon: Icons.description_outlined,
+                    onTap: () => popThen(sheetContext, () async {
+                      if (!context.mounted) return;
+                      LegalDocumentScreen.open(context, LegalDocumentKind.terms);
+                    }),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
-    );
-  }
-
-  Future<void> _openDisplayModePanel() async {
-    final strings = s;
-    final theme = AppThemeController.instance;
-    await _openSheet(
-      title: strings.chooseDisplayMode,
-      child: ListenableBuilder(
-        listenable: theme,
-        builder: (context, _) {
-          return Column(
-            children: [
-              _SettingsOptionTile(
-                label: strings.themeCalm,
-                subtitle: strings.themeCalmSub,
-                selected: theme.mode == AppThemeMode.calm,
-                icon: Icons.spa,
-                onTap: () => theme.setMode(AppThemeMode.calm),
-              ),
-              const SizedBox(height: 10),
-              _SettingsOptionTile(
-                label: strings.themeLight,
-                subtitle: strings.themeLightSub,
-                selected: theme.mode == AppThemeMode.light,
-                icon: Icons.light_mode,
-                onTap: () => theme.setMode(AppThemeMode.light),
-              ),
-              const SizedBox(height: 10),
-              _SettingsOptionTile(
-                label: strings.themeDark,
-                subtitle: strings.themeDarkSub,
-                selected: theme.mode == AppThemeMode.dark,
-                icon: Icons.dark_mode,
-                onTap: () => theme.setMode(AppThemeMode.dark),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _openAccessibilityPanel() => showAccessibilityPanel(context);
-
-  Future<void> _openStoreTermsPanel() async {
-    final strings = s;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: BakeryTheme.softSurface(context),
-      builder: (context) {
-        final bottom = MediaQuery.viewPaddingOf(context).bottom;
-        return _SheetRouteFade(
-          child: bakeryModalSheetFrame(
-            context,
-            _HelpSheetShell(
-              child: ListenableBuilder(
-                listenable: StoreTermsStore.instance,
-                builder: (context, _) {
-                  final text = StoreTermsStore.instance.terms.trim();
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
-                    children: [
-                      Center(child: _HelpSheetHeader(icon: Icons.gavel_rounded)),
-                      const SizedBox(height: 16),
-                      if (text.isEmpty)
-                        Text(
-                          strings.managerStoreTermsEmpty,
-                          textAlign: TextAlign.center,
-                          style: BakeryTheme.subtitleText(context, height: 1.4),
-                        )
-                      else
-                        SelectableText(
-                          text,
-                          style: BakeryTheme.text(context, fontSize: 15, height: 1.5),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            title: strings.storeTerms,
-          ),
-        );
-      },
+      titleOf: (strings) => strings.chooseAccessibilityAndLegal,
     );
   }
 
@@ -3852,10 +4222,29 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
           _HelpSheetShell(
             child: _ContactPanelSheet(
               contactPhone: _contactPhone,
-              contactEmail: _contactEmail,
               parentContext: context,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openFaqPanel() async {
+    final strings = s;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: BakeryTheme.softSurface(context),
+      builder: (sheetContext) => _SheetRouteFade(
+        child: bakeryModalSheetFrame(
+          sheetContext,
+          const _HelpSheetShell(
+            child: _FaqPanelSheet(),
+          ),
+          title: strings.faqTitle,
         ),
       ),
     );
@@ -3865,40 +4254,61 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
     await showReviewDialog(context);
   }
 
+  String _languageAndDisplaySubtitle(AppStrings strings) =>
+      '${_languageSubtitle(strings)} · ${_themeSubtitle(strings)}';
+
   @override
   Widget build(BuildContext context) {
-    final strings = s;
+    return ListenableBuilder(
+      listenable: AppLocale.instance,
+      builder: (context, _) {
+        final strings = AppLocale.instance.s;
+        return _buildSettingsBody(context, strings);
+      },
+    );
+  }
 
+  Widget _buildSettingsBody(BuildContext context, AppStrings strings) {
     final moreSettings = [
           _SettingsMenuItem(
-            icon: Icons.language,
-            title: strings.language,
-            subtitle: _languageSubtitle(strings),
-            onTap: _openLanguagePanel,
+            icon: Icons.help_outline_rounded,
+            title: strings.faq,
+            subtitle: strings.faqSub,
+            onTap: _openFaqPanel,
+          ),
+          ListenableBuilder(
+            listenable: CustomerProfileStore.instance,
+            builder: (context, _) {
+              final signedIn = CustomerProfileStore.instance.isSignedIn;
+              return _SettingsMenuItem(
+                icon: Icons.person_outline_rounded,
+                title: strings.customerProfileTitle,
+                subtitle: signedIn
+                    ? strings.customerSignedInAs(
+                        CustomerProfileStore.instance.displayName,
+                        CustomerProfileStore.instance.phone,
+                      )
+                    : strings.customerProfileSub,
+                onTap: () => showCustomerProfileSheet(context),
+              );
+            },
+          ),
+          ListenableBuilder(
+            listenable: AppThemeController.instance,
+            builder: (context, _) {
+              return _SettingsMenuItem(
+                icon: Icons.tune,
+                title: strings.languageAndDisplay,
+                subtitle: _languageAndDisplaySubtitle(strings),
+                onTap: _openLanguageAndDisplayPanel,
+              );
+            },
           ),
           _SettingsMenuItem(
-            icon: Icons.palette_outlined,
-            title: strings.displayMode,
-            subtitle: _themeSubtitle(strings),
-            onTap: _openDisplayModePanel,
-          ),
-          _SettingsMenuItem(
-            icon: Icons.accessible_forward,
-            title: strings.accessibility,
-            subtitle: strings.accessibilitySub,
-            onTap: _openAccessibilityPanel,
-          ),
-          _SettingsMenuItem(
-            icon: Icons.privacy_tip_outlined,
-            title: strings.legalPrivacyPolicy,
-            subtitle: strings.legalPrivacySub,
-            onTap: () => LegalDocumentScreen.open(context, LegalDocumentKind.privacy),
-          ),
-          _SettingsMenuItem(
-            icon: Icons.description_outlined,
-            title: strings.legalTermsOfUse,
-            subtitle: strings.legalTermsSub,
-            onTap: () => LegalDocumentScreen.open(context, LegalDocumentKind.terms),
+            icon: Icons.health_and_safety_outlined,
+            title: strings.accessibilityAndLegal,
+            subtitle: strings.accessibilityAndLegalSub,
+            onTap: _openAccessibilityAndLegalPanel,
           ),
     ];
 
@@ -3931,15 +4341,6 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                     solidFill: true,
                     onTap: _openContactPanel,
                   ),
-                  if (showStoreTerms)
-                    ManagerActionSquare(
-                      title: strings.storeTerms,
-                      subtitle: strings.storeTermsSub,
-                      icon: Icons.gavel_outlined,
-                      colorIndex: 4,
-                      solidFill: true,
-                      onTap: _openStoreTermsPanel,
-                    ),
                   ManagerActionSquare(
                     title: strings.leaveReview,
                     subtitle: strings.leaveReviewSub,
@@ -3969,6 +4370,10 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
                   ],
                 ),
               ),
+              if (showStoreTerms) ...[
+                const SizedBox(height: 12),
+                const _StoreTermsExpandablePanel(),
+              ],
               const SizedBox(height: 22),
               ...moreSettings.map(
                 (item) => Padding(
@@ -3980,6 +4385,90 @@ class _SettingsHelpPageState extends State<_SettingsHelpPage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _StoreTermsExpandablePanel extends StatefulWidget {
+  const _StoreTermsExpandablePanel();
+
+  @override
+  State<_StoreTermsExpandablePanel> createState() => _StoreTermsExpandablePanelState();
+}
+
+class _StoreTermsExpandablePanelState extends State<_StoreTermsExpandablePanel> {
+  var _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = s;
+
+    return ListenableBuilder(
+      listenable: StoreTermsStore.instance,
+      builder: (context, _) {
+        final text = StoreTermsStore.instance.terms.trim();
+        if (text.isEmpty) return const SizedBox.shrink();
+
+        return _OrdersPanel(
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.gavel_outlined, color: BakeryTheme.accent(context), size: 24),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                strings.storeTerms,
+                                style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                strings.storeTermsSub,
+                                style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          child: Icon(Icons.expand_more, color: BakeryTheme.accent(context), size: 24),
+                        ),
+                      ],
+                    ),
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: SelectableText(
+                          text,
+                          style: BakeryTheme.text(context, fontSize: 15, height: 1.5),
+                        ),
+                      ),
+                      crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 220),
+                      sizeCurve: Curves.easeInOut,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -3999,12 +4488,38 @@ class _SettingsMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _OrdersPanel(
+      padding: EdgeInsets.zero,
+      child: _SettingsMenuRow(
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _SettingsMenuRow extends StatelessWidget {
+  const _SettingsMenuRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: _OrdersPanel(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Row(
             children: [
@@ -4081,7 +4596,7 @@ class _SettingsOptionTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: selected ? decor.cardFill : BakeryTheme.softSurface(context),
+            color: BakerySquarePalette.squareFill(context),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: selected ? decor.accent : BakeryTheme.border(context),
@@ -4125,7 +4640,6 @@ class _SettingsOptionTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (selected) Icon(Icons.check_circle, color: decor.accent),
             ],
           ),
         ),

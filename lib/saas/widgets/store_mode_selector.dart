@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_fonts.dart';
@@ -6,10 +8,13 @@ import '../../core/app_theme_mode.dart';
 import '../../core/bakery_navigator.dart';
 import '../../core/bakery_square_palette.dart';
 import '../../core/manager_store.dart';
+import '../../core/catalog_store.dart';
 import '../../core/supabase/supabase_bootstrap.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import '../utils/appointment_strings.dart';
+import '../../widgets/bakery_celebration.dart';
+import '../../widgets/catalog_empty_state.dart';
 
 /// Products vs appointments — inline buttons or bottom square tiles.
 class StoreModeSelector extends StatefulWidget {
@@ -35,13 +40,26 @@ class _StoreModeSelectorState extends State<StoreModeSelector> {
   @override
   void initState() {
     super.initState();
-    _mode = widget.business?.storeMode ?? ManagerStore.instance.customerPanelMode;
+    ManagerStore.instance.addListener(_onManagerStoreChanged);
+    _mode = ManagerStore.instance.customerPanelMode;
+  }
+
+  @override
+  void dispose() {
+    ManagerStore.instance.removeListener(_onManagerStoreChanged);
+    super.dispose();
+  }
+
+  void _onManagerStoreChanged() {
+    if (!mounted) return;
+    final next = ManagerStore.instance.customerPanelMode;
+    if (next != _mode) setState(() => _mode = next);
   }
 
   @override
   void didUpdateWidget(covariant StoreModeSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final next = widget.business?.storeMode ?? ManagerStore.instance.customerPanelMode;
+    final next = ManagerStore.instance.customerPanelMode;
     if (next != _mode) _mode = next;
   }
 
@@ -79,17 +97,21 @@ class _StoreModeSelectorState extends State<StoreModeSelector> {
         }
       }
 
-      _showSnack(
-        syncedOnline
-            ? (AppointmentStrings.isHebrew
-                ? 'עודכן: ${mode == 'appointments' ? AppointmentStrings.appointmentsShort : AppointmentStrings.productsShort}'
-                : 'Updated: ${mode == 'appointments' ? AppointmentStrings.appointmentsShort : AppointmentStrings.productsShort}')
-            : AppLocale.instance.s.managerStoreModeLocalOnly(
-                mode == 'appointments'
-                    ? AppointmentStrings.appointmentsShort
-                    : AppointmentStrings.productsShort,
-              ),
+      final strings = AppLocale.instance.s;
+      final modeLabel = mode == 'appointments'
+          ? AppointmentStrings.appointmentsShort
+          : AppointmentStrings.productsShort;
+      _showUpdateBanner(
+        title: strings.managerStoreModeUpdatedTitle,
+        subtitle: syncedOnline
+            ? modeLabel
+            : strings.managerStoreModeLocalOnly(modeLabel),
       );
+      if (mode == 'products') {
+        await CatalogStore.instance.armSetupPromptForProductsMode();
+        final root = bakeryNavigatorKey.currentContext;
+        if (root != null) await showCatalogSetupPromptIfNeeded(root);
+      }
     } catch (e) {
       if (mounted) {
         _showSnack(e.toString().replaceFirst('Exception: ', ''));
@@ -100,10 +122,16 @@ class _StoreModeSelectorState extends State<StoreModeSelector> {
     }
   }
 
+  void _showUpdateBanner({required String title, String? subtitle}) {
+    final root = bakeryNavigatorKey.currentContext;
+    if (root == null) return;
+    unawaited(showBakeryUpdateBanner(root, title: title, subtitle: subtitle));
+  }
+
   void _showSnack(String message) {
     final root = bakeryNavigatorKey.currentContext;
     if (root == null) return;
-    ScaffoldMessenger.of(root).showSnackBar(SnackBar(content: Text(message)));
+    unawaited(showBakeryNoticeBanner(root, title: message, isError: true));
   }
 
   void _showModeInfo(String title, String body) {
@@ -361,16 +389,25 @@ class _ModeChoiceButton extends StatelessWidget {
       children: [
         SizedBox(
           width: double.infinity,
-          child: FilledButton(
-            onPressed: enabled ? onPressed : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: selected ? scheme.primary : scheme.surfaceContainerHighest,
-              foregroundColor: selected ? scheme.onPrimary : scheme.onSurface,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          ),
+          child: selected
+              ? FilledButton(
+                  onPressed: enabled ? onPressed : null,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                )
+              : OutlinedButton(
+                  onPressed: enabled ? onPressed : null,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    foregroundColor: scheme.primary,
+                    side: BorderSide(color: scheme.primary, width: 1.6),
+                  ),
+                  child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                ),
         ),
         IconButton(
           visualDensity: VisualDensity.compact,

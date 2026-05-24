@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,142 +11,129 @@ import '../core/demo_store.dart';
 import '../core/bakery_navigator.dart';
 import '../core/keyboard_safe.dart';
 import '../core/manager_store.dart';
+import '../core/store_scoped_reload.dart';
 import '../core/store_terms_store.dart';
 import '../core/public_store_links.dart';
+import '../widgets/bakery_celebration.dart';
 import '../widgets/bakery_sheet_close_bar.dart';
+import '../widgets/copyable_store_link.dart';
 import '../core/supabase/supabase_bootstrap.dart';
 import 'data/saas_repository.dart';
 import 'models/saas_models.dart';
 import 'screens/create_store_screen.dart';
-import 'screens/owner_dashboard_screen.dart';
-import 'screens/phone_verification_screen.dart';
 import 'screens/saas_auth_screen.dart';
 import 'utils/slug_utils.dart';
-import 'widgets/super_admin_gate.dart';
 
-enum _ManagerStoreEntryChoice { create, existing, continueLinked }
+/// Links the manager panel to a store by slug (Supabase or local fallback).
+Future<bool> linkManagerStoreBySlug(String rawSlug) async {
+  final slugText = normalizeSlug(rawSlug);
+  if (slugText.isEmpty) return false;
+  final isDemo = DemoStore.isDemoSlug(slugText);
 
-void _popStoreEntryChoice(BuildContext dialogContext, _ManagerStoreEntryChoice choice) {
-  popRouteSafely(dialogContext, choice);
+  if (SupabaseBootstrap.isReady) {
+    try {
+      final linkedSlug = ManagerStore.instance.linkedBusinessSlug?.trim().toLowerCase();
+      if (ManagerStore.instance.hasLinkedBusiness &&
+          (linkedSlug == slugText || (isDemo && DemoStore.isDemoSlug(linkedSlug)))) {
+        unawaited(_refreshLinkedStoreExtras(isDemo ? DemoStore.slug : slugText));
+        await reloadStoreScopedData();
+        return true;
+      }
+
+      final business = isDemo
+          ? await SaasRepository.instance.fetchDemoBusiness()
+          : await SaasRepository.instance.fetchBusinessBySlug(slugText);
+      if (business != null) {
+        final slugUnchanged = linkedSlug == business.slug.trim().toLowerCase();
+        await ManagerStore.instance.linkOnlineBusiness(
+          id: business.id,
+          slug: business.slug,
+          storeMode: business.storeMode,
+        );
+
+        final extras = Future.wait([
+          ManagerStore.instance.applyServerBranding(logoUrl: business.logoUrl),
+          StoreTermsStore.instance.loadForSlug(business.slug),
+        ]);
+        if (slugUnchanged && ManagerStore.instance.hasLinkedBusiness) {
+          unawaited(extras);
+        } else {
+          await extras;
+        }
+        await reloadStoreScopedData();
+        return true;
+      }
+
+      if (isDemo) {
+        final linked = await ManagerStore.instance.setShareSlug(DemoStore.slug);
+        if (linked) await reloadStoreScopedData();
+        return linked;
+      }
+      return false;
+    } catch (_) {
+      if (isDemo) {
+        final linked = await ManagerStore.instance.setShareSlug(DemoStore.slug);
+        if (linked) await reloadStoreScopedData();
+        return linked;
+      }
+      return false;
+    }
+  }
+
+  if (isDemo) {
+    final linked = await ManagerStore.instance.setShareSlug(DemoStore.slug);
+    if (linked) await reloadStoreScopedData();
+    return linked;
+  }
+  final linked = await ManagerStore.instance.setShareSlug(slugText);
+  if (linked) await reloadStoreScopedData();
+  return linked;
+}
+
+/// Demo manager login — always links locally; enriches from Supabase when available.
+Future<bool> linkDemoStoreForLogin() async {
+  if (SupabaseBootstrap.isReady) {
+    try {
+      final business = await SaasRepository.instance.fetchDemoBusiness();
+      if (business != null) {
+        await ManagerStore.instance.linkOnlineBusiness(
+          id: business.id,
+          slug: business.slug,
+          storeMode: business.storeMode,
+          contactEmail: business.contactEmail ?? DemoStore.defaultContactEmail,
+        );
+        unawaited(Future.wait([
+          ManagerStore.instance.applyServerBranding(logoUrl: business.logoUrl),
+          StoreTermsStore.instance.loadForSlug(business.slug),
+        ]));
+        await reloadStoreScopedData();
+        return true;
+      }
+    } catch (_) {}
+  }
+  final linked = await ManagerStore.instance.setShareSlug(DemoStore.slug);
+  if (linked) {
+    await ManagerStore.instance.ensureDemoCatalogReady();
+    await reloadStoreScopedData();
+  }
+  return linked;
+}
+
+Future<void> _refreshLinkedStoreExtras(String slug) async {
+  try {
+    final business = await SaasRepository.instance.fetchBusinessBySlug(slug);
+    if (business == null) return;
+    await Future.wait([
+      ManagerStore.instance.applyServerBranding(logoUrl: business.logoUrl),
+      StoreTermsStore.instance.loadForSlug(business.slug),
+    ]);
+  } catch (_) {}
 }
 
 /// After manager password — pick new store, existing store, or continue with linked slug.
 Future<bool> runManagerLoginStoreEntry(BuildContext context) async {
-  final root = bakeryRootContext ?? context;
-
-  while (root.mounted) {
-    await waitForNavigatorSettle();
-    if (!root.mounted) return false;
-
-    final choice = await _showManagerStoreEntryChooser(root);
-    if (choice == null || !root.mounted) return false;
-
-    await waitForNavigatorSettle();
-    if (!root.mounted) return false;
-
-    switch (choice) {
-      case _ManagerStoreEntryChoice.create:
-        await openSaasCreateStoreFlow(root);
-        return true;
-      case _ManagerStoreEntryChoice.existing:
-        final linked = await promptLinkExistingStoreForManager(root);
-        if (linked) return true;
-        continue;
-      case _ManagerStoreEntryChoice.continueLinked:
-        return true;
-    }
-  }
-  return false;
-}
-
-Future<_ManagerStoreEntryChoice?> _showManagerStoreEntryChooser(BuildContext context) async {
-  final strings = AppLocale.instance.s;
-  final linked = ManagerStore.instance.linkedBusinessSlug?.trim();
-
-  return showBakeryDialog<_ManagerStoreEntryChoice>(
-    context: context,
-    showCloseButton: false,
-    child: Builder(
-      builder: (dialogContext) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                strings.managerLoginStoreChoiceTitle,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.text(dialogContext, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                strings.managerLoginStoreChoiceHint,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.subtitleText(dialogContext, fontSize: 14, height: 1.35),
-              ),
-              const SizedBox(height: 20),
-              if (linked != null && linked.isNotEmpty) ...[
-                FilledButton.icon(
-                  onPressed: () => _popStoreEntryChoice(
-                    dialogContext,
-                    _ManagerStoreEntryChoice.continueLinked,
-                  ),
-                  icon: const Icon(Icons.dashboard_outlined),
-                  label: Text(strings.managerLoginContinueLinked),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  strings.managerLoginContinueLinkedSub(linked),
-                  textAlign: TextAlign.center,
-                  style: BakeryTheme.subtitleText(dialogContext, fontSize: 13),
-                ),
-                const SizedBox(height: 14),
-              ],
-              FilledButton.icon(
-                onPressed: () => _popStoreEntryChoice(
-                  dialogContext,
-                  _ManagerStoreEntryChoice.create,
-                ),
-                icon: const Icon(Icons.add_business_outlined),
-                label: Text(strings.managerLoginCreateStore),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                strings.managerLoginCreateStoreSub,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.subtitleText(dialogContext, fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: () => _popStoreEntryChoice(
-                  dialogContext,
-                  _ManagerStoreEntryChoice.existing,
-                ),
-                icon: const Icon(Icons.login_rounded),
-                label: Text(strings.managerLoginExistingStore),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                strings.managerLoginExistingStoreSub,
-                textAlign: TextAlign.center,
-                style: BakeryTheme.subtitleText(dialogContext, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () => _popStoreEntryChoice(
-                  dialogContext,
-                  _ManagerStoreEntryChoice.create,
-                ),
-                icon: const Icon(Icons.storefront_outlined),
-                label: Text(strings.managerLoginOpenStore),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
+  // Store is linked during login; go straight to the manager panel.
+  return ManagerStore.instance.hasLinkedBusiness;
 }
 
 /// Links manager panel to an existing store by slug (Supabase lookup or local slug).
@@ -200,57 +189,18 @@ Future<bool> promptLinkExistingStoreForManager(BuildContext context) async {
   if (saved != true || !host.mounted) return false;
   if (slugText.isEmpty) {
     if (host.mounted) {
-      ScaffoldMessenger.of(host).showSnackBar(
-        SnackBar(content: Text(strings.managerShareStoreSlugField)),
-      );
+      unawaited(showBakeryNoticeBanner(host, title: strings.managerShareStoreSlugField, isError: true));
     }
     return false;
   }
 
-  if (SupabaseBootstrap.isReady) {
-    try {
-      final business = await SaasRepository.instance.fetchBusinessBySlug(slugText);
-      if (!host.mounted) return false;
-      if (business == null) {
-        ScaffoldMessenger.of(host).showSnackBar(
-          SnackBar(content: Text(strings.managerLoginExistingNotFound)),
-        );
-        return false;
-      }
-      await ManagerStore.instance.linkOnlineBusiness(
-        id: business.id,
-        slug: business.slug,
-        storeMode: business.storeMode,
-      );
-      await ManagerStore.instance.applyServerBranding(logoUrl: business.logoUrl);
-      await StoreTermsStore.instance.loadForSlug(business.slug);
-      if (!host.mounted) return false;
-      ScaffoldMessenger.of(host).showSnackBar(
-        SnackBar(content: Text(strings.managerLoginLinkedOk)),
-      );
-      return true;
-    } catch (e) {
-      if (!host.mounted) return false;
-      ScaffoldMessenger.of(host).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-      return false;
-    }
-  }
-
-  final ok = await ManagerStore.instance.setShareSlug(slugText);
+  final linked = await linkManagerStoreBySlug(slugText);
   if (!host.mounted) return false;
-  if (!ok) {
-    ScaffoldMessenger.of(host).showSnackBar(
-      SnackBar(content: Text(strings.managerShareStoreSlugField)),
-    );
+  if (!linked) {
+    unawaited(showBakeryNoticeBanner(host, title: strings.managerLoginExistingNotFound, isError: true));
     return false;
   }
-  await StoreTermsStore.instance.loadForSlug(slugText);
-  if (!host.mounted) return false;
-  ScaffoldMessenger.of(host).showSnackBar(
-    SnackBar(content: Text(strings.managerLoginLinkedOk)),
-  );
+  await showBakeryUpdateBanner(host, title: strings.managerLoginLinkedOk);
   return true;
 }
 
@@ -383,9 +333,7 @@ Future<void> _showManualShareSlugDialog(BuildContext context) async {
   final ok = await ManagerStore.instance.setShareSlug(slugText);
   if (!context.mounted) return;
   if (!ok) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(strings.managerShareStoreSlugField)),
-    );
+    unawaited(showBakeryNoticeBanner(context, title: strings.managerShareStoreSlugField, isError: true));
     return;
   }
   final linked = ManagerStore.instance.linkedBusinessSlug;
@@ -397,83 +345,19 @@ Future<void> _showManualShareSlugDialog(BuildContext context) async {
 /// Entry from Settings → Create Store.
 Future<void> openSaasCreateStoreFlow(BuildContext context) async {
   if (!SupabaseBootstrap.isReady) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocale.instance.s.managerShareStoreSupabaseSnack)),
-    );
+    await showBakeryUpdateBanner(context, title: AppLocale.instance.s.managerShareStoreSupabaseSnack);
     return;
   }
 
   final repo = SaasRepository.instance;
   if (repo.currentUser == null) {
-    final signedIn = await Navigator.of(context).push<bool>(
+    final signedIn = await pushRouteSafely<bool>(
       MaterialPageRoute(builder: (_) => const SaasAuthScreen()),
     );
     if (signedIn != true || !context.mounted) return;
   }
 
-  var profile = await repo.fetchCurrentProfile();
-  if (!context.mounted) return;
-
-  if (profile == null) {
-    final signedIn = repo.currentUser != null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          signedIn
-              ? 'Could not load your profile. Sign out, sign in again with shilohdhd1@gmail.com, then retry.'
-              : 'Please sign in first (Settings → Create Store).',
-        ),
-        duration: const Duration(seconds: 6),
-      ),
-    );
-    return;
-  }
-
-  if (!profile.phoneVerified) {
-    final verified = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const PhoneVerificationScreen()),
-    );
-    if (verified != true || !context.mounted) return;
-    profile = await repo.fetchCurrentProfile();
-  }
-
-  if (!context.mounted) return;
-
-  if (profile?.isSuperAdmin == true) {
-    final goAdmin = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Super Admin'),
-        content: const Text('Open Super Admin dashboard or continue creating a store?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Super Admin')),
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Create Store')),
-        ],
-      ),
-    );
-    if (goAdmin == true && context.mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const SuperAdminGate()),
-      );
-      return;
-    }
-  }
-
-  final existing = await repo.fetchOwnedBusiness();
-  if (!context.mounted) return;
-  if (existing != null) {
-    await ManagerStore.instance.linkOnlineBusiness(
-      id: existing.id,
-      slug: existing.slug,
-      storeMode: existing.storeMode,
-    );
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => OwnerDashboardScreen(business: existing)),
-    );
-    return;
-  }
-
-  await Navigator.of(context).push(
+  await pushRouteSafely(
     MaterialPageRoute(builder: (_) => const CreateStoreScreen()),
   );
 }
@@ -486,9 +370,7 @@ String storeShareMessageText(String slug) {
 
 Future<void> _showShareLaunchFailed(BuildContext context) async {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(AppLocale.instance.s.managerShareStoreLaunchFailed)),
-  );
+  unawaited(showBakeryNoticeBanner(context, title: AppLocale.instance.s.managerShareStoreLaunchFailed, isError: true));
 }
 
 Future<bool> _launchShareUri(Uri uri) async {
@@ -499,11 +381,6 @@ Future<bool> _launchShareUri(Uri uri) async {
 Future<void> copyStoreLink(BuildContext context, String slug) async {
   final link = PublicStoreLinks.publicUrlForSlug(slug);
   await Clipboard.setData(ClipboardData(text: link));
-  if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocale.instance.s.managerShareStoreLinkCopied(link))),
-    );
-  }
 }
 
 Future<void> shareStoreLinkWhatsApp(BuildContext context, String slug) async {
@@ -569,6 +446,7 @@ Future<void> shareStoreLinkSystem(BuildContext context, String slug) async {
 Future<void> showStoreShareSheet(BuildContext context, String slug) async {
   final strings = AppLocale.instance.s;
   final link = PublicStoreLinks.publicUrlForSlug(slug);
+  final linkKey = GlobalKey<CopyableStoreLinkBlockState>();
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -614,19 +492,7 @@ Future<void> showStoreShareSheet(BuildContext context, String slug) async {
                 style: BakeryTheme.subtitleText(sheetCtx, fontSize: 13),
               ),
               const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: BakeryTheme.softSurface(sheetCtx),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: BakeryTheme.border(sheetCtx)),
-                ),
-                child: Text(
-                  link,
-                  style: BakeryTheme.text(sheetCtx, fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
+              CopyableStoreLinkBlock(key: linkKey, link: link, compact: true),
               const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: BoxConstraints(
@@ -638,7 +504,7 @@ Future<void> showStoreShareSheet(BuildContext context, String slug) async {
                       tile(
                         icon: Icons.link_rounded,
                         label: strings.managerShareStoreCopy,
-                        onTap: () => closeThen(() => copyStoreLink(context, slug)),
+                        onTap: () => linkKey.currentState?.copyLink(),
                       ),
                       const SizedBox(height: 8),
                       tile(

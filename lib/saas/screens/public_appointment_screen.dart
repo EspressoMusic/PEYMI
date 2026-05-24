@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme_mode.dart';
+import '../../widgets/bakery_celebration.dart';
+import '../../widgets/customer_name_field.dart';
 import '../../core/manager_store.dart';
 import '../data/saas_repository.dart';
 import '../models/appointment_models.dart';
 import '../models/saas_models.dart';
 import '../utils/appointment_strings.dart';
 import 'appointment_booking_screen.dart';
-
-enum _CalendarView { today, week, month }
 
 class PublicAppointmentScreen extends StatefulWidget {
   const PublicAppointmentScreen({
@@ -25,20 +27,20 @@ class PublicAppointmentScreen extends StatefulWidget {
 }
 
 class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
-  _CalendarView _view = _CalendarView.week;
-  DateTime _anchor = DateTime.now();
-  late DateTime _selectedDay;
+  late DateTime _focusedMonth;
+  DateTime? _selectedDay;
   PublicAppointmentSchedule? _schedule;
   var _loading = true;
   String? _error;
 
   static const _embeddedTopPadding = 12.0;
+  static const _dayCellHeight = 54.0;
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _selectedDay = DateTime(now.year, now.month, now.day);
+    _focusedMonth = DateTime(now.year, now.month, 1);
     if (widget.embedded) {
       ManagerStore.instance.ensureAppointmentModeReady().then((_) {
         if (mounted) _load();
@@ -48,28 +50,19 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
     }
   }
 
-  DateTime get _weekStart {
-    final d = DateTime(_anchor.year, _anchor.month, _anchor.day);
-    return d.subtract(Duration(days: d.weekday % 7));
-  }
+  DateTime get _monthStart => DateTime(_focusedMonth.year, _focusedMonth.month, 1);
 
-  (DateTime, DateTime) get _range {
-    switch (_view) {
-      case _CalendarView.today:
-        final t = DateTime(_anchor.year, _anchor.month, _anchor.day);
-        return (t, t);
-      case _CalendarView.week:
-        final start = _weekStart;
-        return (start, start.add(const Duration(days: 6)));
-      case _CalendarView.month:
-        final first = DateTime(_anchor.year, _anchor.month, 1);
-        final last = DateTime(_anchor.year, _anchor.month + 1, 0);
-        return (first, last);
-    }
-  }
+  DateTime get _monthEnd => DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0);
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  bool _isPastDay(DateTime day) {
+    final today = DateTime.now();
+    final tn = DateTime(today.year, today.month, today.day);
+    final d = DateTime(day.year, day.month, day.day);
+    return d.isBefore(tn);
+  }
 
   Future<void> _load() async {
     setState(() {
@@ -77,11 +70,10 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
       _error = null;
     });
     try {
-      final (from, to) = _range;
       final schedule = await SaasRepository.instance.fetchPublicAppointmentSchedule(
         slug: widget.business.slug,
-        from: from,
-        to: to,
+        from: _monthStart,
+        to: _monthEnd,
       );
       if (!mounted) return;
       setState(() {
@@ -95,12 +87,6 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
         _loading = false;
       });
     }
-  }
-
-  void _setView(_CalendarView v) {
-    if (_view == v) return;
-    setState(() => _view = v);
-    _load();
   }
 
   AppointmentScheduleDay? _dayFor(DateTime date) {
@@ -122,7 +108,10 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
         ),
       ),
     );
-    if (booked == true && mounted) _load();
+    if (booked == true && mounted) {
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+      _load();
+    }
   }
 
   Future<void> _waitlistSlot(DateTime date, String time) async {
@@ -139,9 +128,9 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
           children: [
             Text('${_fmtDate(date)} · $time'),
             const SizedBox(height: 12),
-            TextField(
+            CustomerNameField(
               controller: nameCtrl,
-              decoration: InputDecoration(labelText: AppointmentStrings.yourName),
+              label: AppointmentStrings.yourName.replaceAll(' *', ''),
             ),
             TextField(
               controller: phoneCtrl,
@@ -164,9 +153,7 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
     if (ok != true) return;
     if (nameCtrl.text.trim().isEmpty || phoneCtrl.text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppointmentStrings.namePhoneRequired)),
-        );
+        unawaited(showBakeryNoticeBanner(context, title: AppointmentStrings.namePhoneRequired, isError: true));
       }
       return;
     }
@@ -180,218 +167,192 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
         customerEmail: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppointmentStrings.waitlistSaved)),
-        );
+        await showBakeryUpdateBanner(context, title: AppointmentStrings.waitlistSaved);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        unawaited(showBakeryNoticeBanner(context, title: AppointmentStrings.friendlyError(e), isError: true));
       }
     }
   }
 
-  void _shiftPeriod(int direction) {
+  void _shiftMonth(int direction) {
     setState(() {
-      if (_view == _CalendarView.month) {
-        _anchor = DateTime(_anchor.year, _anchor.month + direction, 1);
-      } else {
-        _anchor = _anchor.add(Duration(days: 7 * direction));
-        _selectedDay = _weekStart;
-      }
+      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + direction, 1);
+      _selectedDay = null;
     });
     _load();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final scheduleReady = _schedule != null && !_loading && _error == null;
-    final canBook = widget.business.acceptsCustomers &&
-        (scheduleReady ? (_schedule?.acceptsCustomers ?? false) : widget.embedded);
+  void _selectDay(DateTime day) {
+    if (_isPastDay(day)) return;
+    setState(() => _selectedDay = DateTime(day.year, day.month, day.day));
+  }
 
-    final body = Column(
+  void _clearSelectedDay() {
+    setState(() => _selectedDay = null);
+  }
+
+  Widget _buildDaySlotsPanel(BuildContext context, DateTime day, bool canBook) {
+    final info = _dayFor(day);
+
+    if (info == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (info.closed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          AppointmentStrings.closed,
+          textAlign: TextAlign.center,
+          style: BakeryTheme.subtitleText(context, fontSize: 15),
+        ),
+      );
+    }
+    if (info.slots.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          AppointmentStrings.noSlots,
+          textAlign: TextAlign.center,
+          style: BakeryTheme.subtitleText(context, fontSize: 15),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: WrapAlignment.center,
+      children: [for (final slot in info.slots) _slotChip(day, slot, canBook)],
+    );
+  }
+
+  Widget _buildMonthCalendar(BuildContext context, bool canBook) {
+    final daysInMonth = _monthEnd.day;
+    final leadBlank = _monthStart.weekday % 7;
+    final totalCells = leadBlank + daysInMonth;
+    final rowCount = (totalCells / 7).ceil();
+    final headers = AppointmentStrings.weekdayHeaders;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
+      decoration: BoxDecoration(
+        color: BakeryTheme.cardSurface(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: BakeryTheme.border(context)),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.embedded) SizedBox(height: _embeddedTopPadding),
-          if (widget.embedded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                widget.business.businessName,
-                style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-            ),
-          if (!canBook && !_loading && _error == null)
-            Container(
-              width: double.infinity,
-              color: Colors.red.withValues(alpha: 0.1),
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                AppointmentStrings.unavailable,
-                style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.red),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: SegmentedButton<_CalendarView>(
-              segments: [
-                ButtonSegment(value: _CalendarView.today, label: Text(AppointmentStrings.today)),
-                ButtonSegment(value: _CalendarView.week, label: Text(AppointmentStrings.week)),
-                ButtonSegment(value: _CalendarView.month, label: Text(AppointmentStrings.month)),
-              ],
-              selected: {_view},
-              onSelectionChanged: (s) => _setView(s.first),
-            ),
+          Row(
+            children: [
+              for (final label in headers)
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: BakeryTheme.text(context, fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                ),
+            ],
           ),
-          if (_view != _CalendarView.today)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          const SizedBox(height: 8),
+          ...List.generate(rowCount, (row) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(onPressed: () => _shiftPeriod(-1), icon: const Icon(Icons.chevron_left)),
-                  Text(
-                    _view == _CalendarView.month
-                        ? '${_monthName(_anchor.month)} ${_anchor.year}'
-                        : '${_fmtDate(_range.$1)} – ${_fmtDate(_range.$2)}',
-                    style: BakeryTheme.text(context, fontWeight: FontWeight.w700),
-                  ),
-                  IconButton(onPressed: () => _shiftPeriod(1), icon: const Icon(Icons.chevron_right)),
-                ],
+                children: List.generate(7, (col) {
+                  final cellIndex = row * 7 + col;
+                  if (cellIndex < leadBlank || cellIndex >= leadBlank + daysInMonth) {
+                    return const Expanded(child: SizedBox(height: _dayCellHeight));
+                  }
+                  final dayNum = cellIndex - leadBlank + 1;
+                  final day = DateTime(_focusedMonth.year, _focusedMonth.month, dayNum);
+                  return Expanded(child: _dayCell(context, day, canBook));
+                }),
               ),
-            ),
-          if (_view == _CalendarView.week && !_loading && _error == null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppointmentStrings.weekMeetings,
-                    style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  Text(AppointmentStrings.tapDay, style: BakeryTheme.subtitleText(context)),
-                ],
-              ),
-            ),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: BakeryTheme.text(context, fontSize: 16),
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: _buildBody(canBook),
-                      ),
-          ),
+            );
+          }),
         ],
-      );
-
-    if (widget.embedded) return body;
-
-    return Scaffold(
-      appBar: AppBar(title: const SizedBox.shrink()),
-      body: body,
+      ),
     );
   }
 
-  Widget _buildBody(bool canBook) {
-    switch (_view) {
-      case _CalendarView.today:
-        return _buildSelectedDayPanel(
-          DateTime(_anchor.year, _anchor.month, _anchor.day),
-          canBook,
-        );
-      case _CalendarView.week:
-        return _buildWeekJournal(canBook);
-      case _CalendarView.month:
-        return _buildMonthGrid(canBook);
-    }
-  }
-
-  Widget _buildWeekJournal(bool canBook) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 108,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: 7,
-            itemBuilder: (_, i) {
-              final day = _weekStart.add(Duration(days: i));
-              return _weekDayChip(day, canBook);
-            },
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(child: _buildSelectedDayPanel(_selectedDay, canBook)),
-      ],
-    );
-  }
-
-  Widget _weekDayChip(DateTime day, bool canBook) {
+  Widget _dayCell(BuildContext context, DateTime day, bool canBook) {
     final info = _dayFor(day);
-    final selected = _sameDay(day, _selectedDay);
+    final selected = _selectedDay != null && _sameDay(day, _selectedDay!);
     final isToday = _sameDay(day, DateTime.now());
+    final isPast = _isPastDay(day);
+    final accent = BakeryTheme.accent(context);
 
-    String statusLabel;
-    Color statusColor;
-    if (info == null) {
-      statusLabel = '…';
-      statusColor = Colors.grey;
-    } else if (info.closed) {
-      statusLabel = AppointmentStrings.closed;
-      statusColor = Colors.grey;
-    } else if (info.fullyBooked) {
-      statusLabel = AppointmentStrings.full;
-      statusColor = Colors.orange;
+    Color? fill;
+    Color borderColor = Colors.transparent;
+    double borderWidth = 1.2;
+
+    if (selected) {
+      fill = Theme.of(context).colorScheme.primaryContainer;
+      borderColor = accent;
+      borderWidth = 2;
+    } else if (isPast) {
+      fill = BakeryTheme.inputFill(context).withValues(alpha: 0.45);
     } else {
-      statusLabel = '${info.availableCount}';
-      statusColor = Colors.green.shade700;
+      fill = BakeryTheme.appointmentTileSurface(context);
     }
+
+    Color statusColor = Colors.grey;
+    if (!isPast && info != null) {
+      if (info.closed) {
+        statusColor = Colors.grey;
+      } else if (info.fullyBooked) {
+        statusColor = Colors.orange.shade700;
+      } else if (info.availableCount > 0) {
+        statusColor = Colors.green.shade700;
+      }
+    }
+
+    final tappable = !isPast && canBook;
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.all(2),
       child: Material(
-        elevation: selected ? 3 : 0,
-        color: selected
-            ? Theme.of(context).colorScheme.primaryContainer
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
+        color: fill,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: () => setState(() => _selectedDay = DateTime(day.year, day.month, day.day)),
-          borderRadius: BorderRadius.circular(14),
-          child: SizedBox(
-            width: 72,
+          onTap: tappable ? () => _selectDay(day) : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: _dayCellHeight,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isToday && !selected ? accent.withValues(alpha: 0.7) : borderColor,
+                width: isToday && !selected ? 1.6 : borderWidth,
+              ),
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  AppointmentStrings.dayName(day.weekday % 7),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: isToday ? Theme.of(context).colorScheme.primary : null,
+                  '${day.day}',
+                  style: BakeryTheme.text(
+                    context,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: isPast ? BakeryTheme.muted(context) : null,
                   ),
                 ),
-                Text(
-                  '${day.day}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                ),
                 const SizedBox(height: 4),
-                Text(
-                  statusLabel,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: isPast ? Colors.transparent : statusColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ],
             ),
@@ -401,35 +362,148 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
     );
   }
 
-  Widget _buildSelectedDayPanel(DateTime day, bool canBook) {
-    final info = _dayFor(day);
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          _fmtDate(day),
-          style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Text(AppointmentStrings.pickDayAndTime, style: BakeryTheme.subtitleText(context)),
-        const SizedBox(height: 16),
-        if (info == null)
-          const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
-        else if (info.closed)
-          Text(AppointmentStrings.closed, style: const TextStyle(color: Colors.grey, fontSize: 16))
-        else if (info.slots.isEmpty)
-          Text(AppointmentStrings.noSlots, style: const TextStyle(color: Colors.grey, fontSize: 16))
-        else
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+  Widget _buildSlotsSection(BuildContext context, bool canBook) {
+    final day = _selectedDay!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      decoration: BoxDecoration(
+        color: BakeryTheme.cardSurface(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: BakeryTheme.border(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              for (final slot in info.slots)
-                _slotChip(day, slot, canBook),
+              IconButton(
+                onPressed: _clearSelectedDay,
+                icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: AppointmentStrings.backToCalendar,
+              ),
+              Expanded(
+                child: Text(
+                  '${AppointmentStrings.slotsForDay} · ${_fmtDate(day)}',
+                  textAlign: TextAlign.center,
+                  style: BakeryTheme.text(context, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(width: 48),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            AppointmentStrings.chooseAvailableTime,
+            textAlign: TextAlign.center,
+            style: BakeryTheme.subtitleText(context, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          _buildDaySlotsPanel(context, day, canBook),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheduleReady = _schedule != null && !_loading && _error == null;
+    final canBook = widget.business.acceptsCustomers &&
+        (scheduleReady ? (_schedule?.acceptsCustomers ?? false) : widget.embedded);
+
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.embedded) const SizedBox(height: _embeddedTopPadding),
+        if (widget.embedded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              widget.business.businessName,
+              style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+          ),
+        if (!canBook && !_loading && _error == null)
+          Container(
+            width: double.infinity,
+            color: Colors.red.withValues(alpha: 0.1),
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              AppointmentStrings.unavailable,
+              style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          child: Row(
+            children: [
+              IconButton(onPressed: _loading ? null : () => _shiftMonth(-1), icon: const Icon(Icons.chevron_left)),
+              Expanded(
+                child: Text(
+                  AppointmentStrings.monthYear(_focusedMonth),
+                  textAlign: TextAlign.center,
+                  style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(onPressed: _loading ? null : () => _shiftMonth(1), icon: const Icon(Icons.chevron_right)),
+            ],
+          ),
+        ),
+        if (!_loading && _error == null && _selectedDay == null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Text(
+              AppointmentStrings.tapDay,
+              textAlign: TextAlign.center,
+              style: BakeryTheme.subtitleText(context, fontSize: 14),
+            ),
+          ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: BakeryTheme.text(context, fontSize: 16),
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final showSlots = _selectedDay != null;
+                          return ListView(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                            children: [
+                              if (!showSlots)
+                                SizedBox(
+                                  height: (constraints.maxHeight - 24).clamp(280.0, double.infinity),
+                                  child: Center(child: _buildMonthCalendar(context, canBook)),
+                                )
+                              else ...[
+                                _buildMonthCalendar(context, canBook),
+                                const SizedBox(height: 16),
+                                _buildSlotsSection(context, canBook),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+        ),
       ],
+    );
+
+    if (widget.embedded) return body;
+
+    return Scaffold(
+      appBar: AppBar(title: const SizedBox.shrink()),
+      body: body,
     );
   }
 
@@ -480,101 +554,6 @@ class _PublicAppointmentScreenState extends State<PublicAppointmentScreen> {
     );
   }
 
-  Widget _buildMonthGrid(bool canBook) {
-    final first = DateTime(_anchor.year, _anchor.month, 1);
-    final leading = first.weekday % 7;
-    final daysInMonth = DateTime(_anchor.year, _anchor.month + 1, 0).day;
-    final total = leading + daysInMonth;
-    final rows = (total / 7).ceil();
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(
-            7,
-            (i) => Text(
-              AppointmentStrings.dayName(i),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...List.generate(rows, (row) {
-          return Row(
-            children: List.generate(7, (col) {
-              final index = row * 7 + col;
-              if (index < leading || index >= leading + daysInMonth) {
-                return const Expanded(child: SizedBox(height: 72));
-              }
-              final dayNum = index - leading + 1;
-              final date = DateTime(_anchor.year, _anchor.month, dayNum);
-              final info = _dayFor(date);
-              return Expanded(child: _monthCell(date, info, canBook));
-            }),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _monthCell(DateTime date, AppointmentScheduleDay? info, bool canBook) {
-    String label;
-    Color? bg;
-    if (info == null || info.closed) {
-      label = AppointmentStrings.closed;
-      bg = Colors.grey.shade200;
-    } else if (info.fullyBooked) {
-      label = AppointmentStrings.full;
-      bg = Colors.orange.shade100;
-    } else {
-      label = '${info.availableCount}';
-      bg = Colors.green.shade100;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(2),
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              _view = _CalendarView.week;
-              _anchor = date;
-              _selectedDay = DateTime(date.year, date.month, date.day);
-            });
-            _load();
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            height: 72,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('${date.day}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                Text(label, style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   static String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  static String _monthName(int m) {
-    const en = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    const he = [
-      'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
-      'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
-    ];
-    return AppointmentStrings.isHebrew ? he[m - 1] : en[m - 1];
-  }
 }

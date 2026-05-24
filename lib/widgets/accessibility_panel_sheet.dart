@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/accessibility_settings.dart';
 import '../core/app_locale.dart';
 import '../core/app_theme_mode.dart';
+import '../core/bakery_navigator.dart';
 import '../core/keyboard_safe.dart';
 import '../core/legal_config.dart';
 
@@ -15,13 +16,16 @@ Future<void> showAccessibilityPanel(BuildContext context) async {
   final businessName = LegalConfig.businessDisplayName(he);
   final email = LegalConfig.accessibilityEmail;
 
-  await showModalBottomSheet<void>(
+  await showOverlaySafely<void>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-    builder: (sheetContext) {
+    show: (host) => showModalBottomSheet<void>(
+      context: host,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(host).scaffoldBackgroundColor,
+      builder: (sheetContext) {
       final bottom = MediaQuery.viewPaddingOf(sheetContext).bottom;
       return bakeryModalSheetFrame(
         sheetContext,
@@ -120,7 +124,8 @@ Future<void> showAccessibilityPanel(BuildContext context) async {
         ),
         title: strings.accessibilityTitle,
       );
-    },
+      },
+    ),
   );
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,18 +14,23 @@ import 'core/business_store.dart';
 import 'core/catalog_data.dart';
 import 'core/catalog_store.dart';
 import 'core/faq_store.dart';
+import 'core/platform_legal_notice.dart';
 import 'core/store_terms_store.dart';
 import 'core/catalog_image_storage.dart';
 import 'core/locale_translate.dart';
 import 'core/manager_store.dart';
 import 'core/manager_subscription_store.dart';
+import 'core/appointment_schedule_store.dart';
 import 'core/order_restrictions_store.dart';
 import 'core/reviews_store.dart';
 import 'widgets/bakery_celebration.dart';
+import 'widgets/catalog_empty_state.dart';
 import 'widgets/catalog_item_image.dart';
 import 'widgets/bakery_sheet_close_bar.dart';
+import 'widgets/legal_document_screen.dart';
 import 'widgets/manager_revenue_chart.dart';
 import 'saas/widgets/saas_store_mode_section.dart';
+import 'saas/utils/appointment_strings.dart';
 
 AppStrings get _s => AppLocale.instance.s;
 
@@ -96,10 +103,7 @@ class ManagerActionSquare extends StatelessWidget {
     final border = switch ((highlighted, solidFill, comingSoon)) {
       (_, _, true) => BakerySquarePalette.squareBorder(context),
       (true, _, false) => Border.all(color: BakeryTheme.accent(context), width: 2),
-      (_, true, false) => Border.all(
-          color: AppColors.brownMedium.withValues(alpha: 0.55),
-          width: BakerySquarePalette.squareBorderWidth,
-        ),
+      (_, true, false) => BakerySquarePalette.squareBorder(context),
       _ => BakerySquarePalette.squareBorder(context),
     };
     final titleColor = BakerySquarePalette.title(context);
@@ -242,7 +246,11 @@ class ManagerSubPage extends StatelessWidget {
         title: const SizedBox.shrink(),
         toolbarHeight: 44,
       ),
-      body: body,
+      body: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 16),
+        child: body,
+      ),
     );
   }
 }
@@ -284,25 +292,29 @@ class _MpButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final labelColor = BakeryTheme.buttonOnFill(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          height: 52,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [scheme.primary, scheme.secondary]),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: scheme.onPrimary),
-              const SizedBox(width: 8),
-              Text(label, style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
-            ],
+        child: BakerySquarePalette.shell(
+          context: context,
+          borderRadius: 18,
+          color: BakeryTheme.buttonFill(context),
+          child: SizedBox(
+            height: 52,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: labelColor),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 15, color: labelColor),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -363,7 +375,7 @@ Future<void> openManagerReviewReplySheet(BuildContext context, int index, Custom
               controller: controller,
               maxLines: 4,
               textAlign: TextAlign.start,
-              decoration: bakeryInputDecoration(sheetContext, label: strings.managerReplyHint, icon: Icons.reply_rounded),
+              decoration: bakeryInputDecoration(sheetContext, label: strings.managerReplyHint, icon: Icons.reply_rounded, multiline: true),
             ),
             const SizedBox(height: 16),
             _MpButton(
@@ -373,12 +385,9 @@ Future<void> openManagerReviewReplySheet(BuildContext context, int index, Custom
                 final recovered = await ReviewsStore.instance.setManagerReply(index, controller.text);
                 if (sheetContext.mounted) Navigator.pop(sheetContext);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        recovered ? strings.managerReplyStatsRecovered : strings.managerReplySaved,
-                      ),
-                    ),
+                  await showBakeryUpdateBanner(
+                    context,
+                    title: recovered ? strings.managerReplyStatsRecovered : strings.managerReplySaved,
                   );
                 }
               },
@@ -389,6 +398,108 @@ Future<void> openManagerReviewReplySheet(BuildContext context, int index, Custom
     },
   );
   controller.dispose();
+}
+
+class _ManagerCollapsiblePanel extends StatefulWidget {
+  const _ManagerCollapsiblePanel({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.body,
+    this.badge,
+    this.onOpen,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget body;
+  final Widget? badge;
+  final Future<void> Function()? onOpen;
+
+  @override
+  State<_ManagerCollapsiblePanel> createState() => _ManagerCollapsiblePanelState();
+}
+
+class _ManagerCollapsiblePanelState extends State<_ManagerCollapsiblePanel> {
+  var _expanded = false;
+
+  Future<void> _toggle() async {
+    final next = !_expanded;
+    setState(() => _expanded = next);
+    if (next) {
+      await widget.onOpen?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _Mp(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: _toggle,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                    child: Row(
+                      children: [
+                        Icon(widget.icon, color: BakeryTheme.accent(context), size: 26),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                widget.title,
+                                style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.subtitle,
+                                maxLines: _expanded ? null : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          child: Icon(Icons.expand_more, color: BakeryTheme.accent(context), size: 24),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                clipBehavior: Clip.none,
+                child: _expanded
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+                        child: widget.body,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+        if (widget.badge != null) widget.badge!,
+      ],
+    );
+  }
 }
 
 class _ManagerReviewCard extends StatelessWidget {
@@ -509,47 +620,34 @@ class ManagerCustomersPage extends StatefulWidget {
 }
 
 class _ManagerCustomersPageState extends State<ManagerCustomersPage> {
+  @override
+  Widget build(BuildContext context) {
+    return ManagerSubPage(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        children: [
+          _ManagerReviewsSection(initialReviewIndex: widget.initialReviewIndex),
+          const SizedBox(height: 12),
+          const _ManagerInquiriesSection(),
+          const SizedBox(height: 12),
+          const _ManagerAnnouncementSection(),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManagerReviewsSection extends StatefulWidget {
+  const _ManagerReviewsSection({this.initialReviewIndex});
+
+  final int? initialReviewIndex;
+
+  @override
+  State<_ManagerReviewsSection> createState() => _ManagerReviewsSectionState();
+}
+
+class _ManagerReviewsSectionState extends State<_ManagerReviewsSection> {
   bool _openedInitialReview = false;
-  late final TextEditingController _messageCtrl;
-  String _imagePath = '';
-  bool _publishing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final hebrew = AppLocale.instance.isHebrew;
-    _messageCtrl = TextEditingController(text: ManagerStore.instance.announcement(hebrew));
-    _imagePath = ManagerStore.instance.announcementImagePath;
-  }
-
-  @override
-  void dispose() {
-    _messageCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickAnnouncementImage() async {
-    if (_publishing) return;
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 88);
-    if (!mounted || picked == null) return;
-    final saved = await CatalogImageStorage.saveFromPicker(picked.path);
-    if (!mounted) return;
-    setState(() => _imagePath = saved);
-  }
-
-  Future<void> _publishAnnouncement() async {
-    if (_publishing) return;
-    final text = _messageCtrl.text.trim();
-    if (text.isEmpty && _imagePath.isEmpty) return;
-    setState(() => _publishing = true);
-    try {
-      await ManagerStore.instance.setAnnouncementFromText(text, imagePath: _imagePath);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_s.managerUpdatePublished)));
-    } finally {
-      if (mounted) setState(() => _publishing = false);
-    }
-  }
 
   void _openInitialReviewIfNeeded(List<CustomerReview> reviews) {
     if (_openedInitialReview || widget.initialReviewIndex == null) return;
@@ -566,131 +664,421 @@ class _ManagerCustomersPageState extends State<ManagerCustomersPage> {
   Widget build(BuildContext context) {
     final strings = _s;
     final hebrew = AppLocale.instance.isHebrew;
-    return ManagerSubPage(
-      body: ListenableBuilder(
-        listenable: Listenable.merge([ReviewsStore.instance, ManagerStore.instance]),
-        builder: (context, _) {
-          final reviews = ReviewsStore.instance.reviews;
-          _openInitialReviewIfNeeded(reviews);
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-            children: [
-              _Mp(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      strings.managerActionUpdate,
-                      style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(strings.managerActionUpdateSub, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _messageCtrl,
-                      maxLines: 4,
-                      enabled: !_publishing,
-                      decoration: bakeryInputDecoration(
-                        context,
-                        label: strings.managerUpdateMessage,
-                        icon: Icons.campaign_outlined,
+
+    return ListenableBuilder(
+      listenable: ReviewsStore.instance,
+      builder: (context, _) {
+        final reviews = ReviewsStore.instance.reviews;
+        _openInitialReviewIfNeeded(reviews);
+
+        return _ManagerCollapsiblePanel(
+          title: strings.managerReviewsSection,
+          subtitle: strings.managerReviewsSectionHint,
+          icon: Icons.rate_review_outlined,
+          body: reviews.isEmpty
+              ? Text(strings.managerNoReviews, style: BakeryTheme.subtitleText(context))
+              : Column(
+                  children: reviews.asMap().entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ManagerReviewCard(
+                        index: entry.key,
+                        review: entry.value,
+                        hebrew: hebrew,
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      strings.managerUpdateImage,
-                      style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_imagePath.isNotEmpty) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: CatalogItemImage(
-                          path: _imagePath,
-                          height: 160,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          emoji: '📣',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _publishing ? null : _pickAnnouncementImage,
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: Text(strings.managerUpdatePickImage),
-                          ),
-                        ),
-                        if (_imagePath.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: _publishing ? null : () => setState(() => _imagePath = ''),
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: strings.managerUpdateRemoveImage,
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Opacity(
-                      opacity: _publishing ? 0.55 : 1,
-                      child: _MpButton(
-                        icon: Icons.publish_rounded,
-                        label: _publishing ? strings.managerItemSaving : strings.managerPublishUpdate,
-                        onPressed: _publishing ? () {} : _publishAnnouncement,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _publishing
-                          ? null
-                          : () async {
-                              await ManagerStore.instance.clearAnnouncement();
-                              if (!mounted) return;
-                              setState(() {
-                                _messageCtrl.clear();
-                                _imagePath = '';
-                              });
-                            },
-                      child: Text(strings.managerClearUpdate),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                strings.managerActionCustomers,
-                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              Text(strings.managerReviewsSectionHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-              const SizedBox(height: 12),
-              if (reviews.isEmpty)
-                _Mp(child: Text(strings.managerNoReviews, style: BakeryTheme.subtitleText(context)))
-              else
-                ...reviews.asMap().entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ManagerReviewCard(
-                      index: entry.key,
-                      review: entry.value,
-                      hebrew: hebrew,
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
+        );
+      },
+    );
+  }
+}
+
+class _ManagerAnnouncementSection extends StatefulWidget {
+  const _ManagerAnnouncementSection();
+
+  @override
+  State<_ManagerAnnouncementSection> createState() => _ManagerAnnouncementSectionState();
+}
+
+class _ManagerAnnouncementSectionState extends State<_ManagerAnnouncementSection> {
+  late final TextEditingController _messageCtrl;
+  final AudioPlayer _celebrationPlayer = AudioPlayer();
+  var _publishing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final hebrew = AppLocale.instance.isHebrew;
+    _messageCtrl = TextEditingController(text: ManagerStore.instance.announcement(hebrew));
+  }
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    _celebrationPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _publishAnnouncement() async {
+    if (_publishing) return;
+    final text = _messageCtrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _publishing = true);
+    try {
+      await ManagerStore.instance.setAnnouncementFromText(text);
+      if (!mounted) return;
+      await showBakerySuccessCelebration(
+        context,
+        title: _s.managerMessageSentTitle,
+        subtitle: _s.managerMessageSentSub,
+        player: _celebrationPlayer,
+      );
+    } finally {
+      if (mounted) setState(() => _publishing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = _s;
+
+    return _ManagerCollapsiblePanel(
+      title: strings.managerActionUpdate,
+      subtitle: strings.managerActionUpdateSub,
+      icon: Icons.campaign_outlined,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _messageCtrl,
+            maxLines: 4,
+            enabled: !_publishing,
+            decoration: bakeryInputDecoration(
+              context,
+              label: strings.managerUpdateMessage,
+              icon: Icons.edit_note_outlined,
+              multiline: true,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Opacity(
+            opacity: _publishing ? 0.55 : 1,
+            child: _MpButton(
+              icon: Icons.publish_rounded,
+              label: _publishing ? strings.managerItemSaving : strings.managerPublishUpdate,
+              onPressed: _publishing ? () {} : _publishAnnouncement,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _publishing
+                ? null
+                : () async {
+                    await ManagerStore.instance.clearAnnouncement();
+                    if (!mounted) return;
+                    setState(() => _messageCtrl.clear());
+                  },
+            child: Text(strings.managerClearUpdate),
+          ),
+        ],
       ),
     );
   }
 }
 
+class _ManagerInquiriesSection extends StatelessWidget {
+  const _ManagerInquiriesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = _s;
+
+    return ListenableBuilder(
+      listenable: ManagerStore.instance,
+      builder: (context, _) {
+        final inquiries = ManagerStore.instance.inquiries;
+        final showBadge = ManagerStore.instance.hasUnreadInquiries;
+
+        return _ManagerCollapsiblePanel(
+          title: strings.managerInquiriesSection,
+          subtitle: strings.managerInquiriesHint,
+          icon: Icons.inbox_outlined,
+          onOpen: ManagerStore.instance.markInquiriesSeen,
+          badge: showBadge
+              ? const PositionedDirectional(
+                  top: -6,
+                  end: -4,
+                  child: _ManagerInquiryAlertBadge(),
+                )
+              : null,
+          body: inquiries.isEmpty
+              ? Text(strings.managerNoInquiries, style: BakeryTheme.subtitleText(context))
+              : Column(
+                  children: inquiries
+                      .map((inq) => _ManagerInquiryCard(inquiry: inq))
+                      .toList(),
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _ManagerInquiryAlertBadge extends StatelessWidget {
+  const _ManagerInquiryAlertBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: const BoxDecoration(
+        color: Color(0xFFD32F2F),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.priority_high_rounded, color: Colors.white, size: 18),
+    );
+  }
+}
+
+class _ManagerInquiryCard extends StatefulWidget {
+  const _ManagerInquiryCard({required this.inquiry});
+
+  final CustomerInquiry inquiry;
+
+  @override
+  State<_ManagerInquiryCard> createState() => _ManagerInquiryCardState();
+}
+
+class _ManagerInquiryCardState extends State<_ManagerInquiryCard> {
+  final _replyController = TextEditingController();
+  var _sending = false;
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendReply() async {
+    if (_sending) return;
+    final text = _replyController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sending = true);
+    await ManagerStore.instance.replyToInquiry(id: widget.inquiry.id, reply: text);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    _replyController.clear();
+    await showBakeryUpdateBanner(context, title: _s.managerInquiryReplySent);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = _s;
+    final inq = widget.inquiry;
+    final accent = BakeryTheme.accent(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: BakeryTheme.inputFill(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: BakeryTheme.border(context)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (inq.customerName?.trim().isNotEmpty == true)
+              Text(
+                inq.customerName!.trim(),
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            if (inq.reason?.trim().isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                inq.reason!.trim(),
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              inq.message,
+              style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _formatInquiryDate(inq.createdAtMs),
+              style: BakeryTheme.subtitleText(context, fontSize: 12),
+            ),
+            if (inq.hasReply) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withValues(alpha: 0.35)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.managerInquiryYourReply,
+                      style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 13, color: accent),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      inq.replyText!.trim(),
+                      style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
+                    ),
+                    if (inq.replyAtMs != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatInquiryDate(inq.replyAtMs!),
+                        style: BakeryTheme.subtitleText(context, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _replyController,
+                maxLines: 3,
+                enabled: !_sending,
+                decoration: bakeryInputDecoration(
+                  context,
+                  label: strings.managerInquiryReplyHint,
+                  icon: Icons.reply_rounded,
+                  multiline: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: FilledButton.icon(
+                  onPressed: _sending ? null : _sendReply,
+                  icon: _sending
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send_rounded, size: 18),
+                  label: Text(strings.managerInquirySendReply),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatInquiryDate(int createdAtMs) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(createdAtMs);
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} · $h:$m';
+}
+
+List<String> _dealImagesForDisplay(Map<String, dynamic> deal) {
+  final stored = (deal['images'] as List?)?.cast<String>() ?? const <String>[];
+  final fromStored = stored.where((p) => p.trim().isNotEmpty).toList();
+  if (fromStored.isNotEmpty) return fromStored;
+
+  final catalog = CatalogStore.instance;
+  final items = (deal['items'] as List?) ?? const [];
+  final paths = <String>[];
+  for (final raw in items) {
+    if (raw is! Map) continue;
+    final itemImage = raw['image']?.toString();
+    if (itemImage != null && itemImage.isNotEmpty) {
+      paths.add(itemImage);
+      continue;
+    }
+    final id = raw['id']?.toString();
+    if (id == null) continue;
+    final path = catalog.findById(id)?['image'];
+    if (path != null && path.isNotEmpty) paths.add(path);
+  }
+  return paths;
+}
+
+String _dealEmojiAt(Map<String, dynamic> deal, int index) {
+  final items = (deal['items'] as List?) ?? const [];
+  if (index >= items.length) return '🥖';
+  final raw = items[index];
+  if (raw is! Map) return '🥖';
+  final emoji = raw['emoji']?.toString();
+  if (emoji != null && emoji.isNotEmpty) return emoji;
+  final id = raw['id']?.toString();
+  if (id != null) return CatalogStore.instance.findById(id)?['emoji'] ?? '🥖';
+  return '🥖';
+}
+
+Widget _dealListImages(BuildContext context, Map<String, dynamic> deal, {double size = 44}) {
+  final images = _dealImagesForDisplay(deal);
+  const maxShow = 2;
+  final shown = images.take(maxShow).toList(growable: false);
+  final extra = images.length - shown.length;
+
+  if (shown.isEmpty) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: BakeryTheme.cardSurface(context),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: BakeryTheme.border(context)),
+        ),
+        child: const Center(child: Text('🎁', style: TextStyle(fontSize: 20))),
+      ),
+    );
+  }
+
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var i = 0; i < shown.length; i++) ...[
+        if (i > 0) const SizedBox(width: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CatalogItemImage(
+            path: shown[i],
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            emoji: _dealEmojiAt(deal, i),
+          ),
+        ),
+      ],
+      if (extra > 0)
+        Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Text(
+            '+$extra',
+            style: BakeryTheme.text(context, fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+        ),
+    ],
+  );
+}
+
 class ManagerNewDealPage extends StatefulWidget {
-  const ManagerNewDealPage({super.key});
+  const ManagerNewDealPage({super.key, this.initialDealId});
+
+  /// When set, opens the form pre-filled for editing this deal.
+  final String? initialDealId;
 
   @override
   State<ManagerNewDealPage> createState() => _ManagerNewDealPageState();
@@ -705,13 +1093,204 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
   final List<String> _selectedIds = [];
   int _confettiToken = 0;
   int _validityDays = 7;
+  String? _editingDealId;
 
   static const _validityDayOptions = [1, 3, 7, 14, 30];
   static const _maxProductsInDeal = 6;
 
   bool get _canPublish => _selectedIds.isNotEmpty && _price.text.trim().isNotEmpty;
 
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialDealId?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startEditing(initial));
+    }
+  }
+
   void _removeProduct(String id) => setState(() => _selectedIds.remove(id));
+
+  int _validityDaysFromDeal(Map<String, dynamic> deal) {
+    final expires = CatalogData.dealExpiresAtMs(deal);
+    if (expires == null) return 7;
+    final days = DateTime.fromMillisecondsSinceEpoch(expires).difference(DateTime.now()).inDays;
+    if (days <= 1) return 1;
+    if (days <= 3) return 3;
+    if (days <= 7) return 7;
+    if (days <= 14) return 14;
+    return 30;
+  }
+
+  void _resetForm() {
+    _title.clear();
+    _desc.clear();
+    _price.clear();
+    _selectedIds.clear();
+    _validityDays = 7;
+    _editingDealId = null;
+  }
+
+  void _startEditing(String dealId) {
+    final deal = ManagerStore.instance.findDealById(dealId);
+    if (deal == null) return;
+    setState(() {
+      _editingDealId = dealId;
+      _title.text = CatalogData.dealField(deal, 'title');
+      _desc.text = CatalogData.dealField(deal, 'desc');
+      _price.text = deal['priceAfterDiscount']?.toString().replaceAll('₪', '').trim() ?? '';
+      _selectedIds
+        ..clear()
+        ..addAll([
+          for (final raw in (deal['items'] as List?) ?? const [])
+            if (raw is Map && raw['id'] != null) raw['id'].toString(),
+        ]);
+      _validityDays = _validityDaysFromDeal(deal);
+    });
+  }
+
+  Future<void> _confirmDeleteDeal(String dealId) async {
+    final strings = _s;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(strings.managerConfirmDeleteDeal),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(strings.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(strings.managerDeleteDeal)),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await ManagerStore.instance.removeDeal(dealId);
+    if (_editingDealId == dealId) {
+      setState(_resetForm);
+    }
+    if (!mounted) return;
+    await showBakeryUpdateBanner(context, title: strings.managerDealDeleted);
+  }
+
+  Widget _existingDealTile(BuildContext context, Map<String, dynamic> deal) {
+    final strings = _s;
+    final id = deal['id'] as String;
+    final editing = _editingDealId == id;
+    final accent = BakeryTheme.accent(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: _Mp(
+        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        child: Row(
+          children: [
+            _dealListImages(context, deal),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    CatalogData.dealField(deal, 'title'),
+                    style: BakeryTheme.text(context, fontSize: 14, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${deal['priceAfterDiscount']} · ${CatalogData.dealField(deal, 'valid')}',
+                    style: BakeryTheme.subtitleText(context, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => _startEditing(id),
+              child: Text(
+                strings.managerEditDeal,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: editing ? accent : null,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: strings.managerDeleteDeal,
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _confirmDeleteDeal(id),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveDeal() async {
+    if (!_canPublish) return;
+    final strings = _s;
+    final catalog = CatalogStore.instance;
+    final products = _selectedIds.map((id) => catalog.findById(id)!).toList();
+
+    final titleRaw = _title.text.trim();
+    final autoTitleHe = products.map((p) => p['nameHe']).join(' + ');
+    final autoTitleEn = products.map((p) => p['nameEn']).join(' + ');
+    final titleHe = titleRaw.isNotEmpty ? titleRaw : autoTitleHe;
+    final titleEn = titleRaw.isNotEmpty ? titleRaw : autoTitleEn;
+    final descRaw = _desc.text.trim();
+    final priceText = _price.text.trim().contains('₪') ? _price.text.trim() : '${_price.text.trim()}₪';
+    final expiresAt = DateTime.now().add(Duration(days: _validityDays));
+    final payload = (
+      titleHe: titleHe,
+      titleEn: titleEn,
+      descHe: descRaw,
+      descEn: descRaw,
+      expiresAtMs: expiresAt.millisecondsSinceEpoch,
+      priceAfterDiscount: priceText,
+      images: products.map((p) => p['image']!).toList(),
+      items: [
+        for (final p in products)
+          {'id': p['id'], 'quantity': '1', 'price': p['price']},
+      ],
+    );
+
+    final editingId = _editingDealId;
+    if (editingId != null) {
+      await ManagerStore.instance.updateDeal(
+        id: editingId,
+        titleHe: payload.titleHe,
+        titleEn: payload.titleEn,
+        descHe: payload.descHe,
+        descEn: payload.descEn,
+        expiresAtMs: payload.expiresAtMs,
+        priceAfterDiscount: payload.priceAfterDiscount,
+        images: payload.images,
+        items: payload.items,
+        notifyCustomers: true,
+      );
+      if (!mounted) return;
+      setState(_resetForm);
+      await showBakeryUpdateBanner(context, title: strings.managerDealUpdated);
+      return;
+    }
+
+    await ManagerStore.instance.addDeal(
+      titleHe: payload.titleHe,
+      titleEn: payload.titleEn,
+      descHe: payload.descHe,
+      descEn: payload.descEn,
+      expiresAtMs: payload.expiresAtMs,
+      priceAfterDiscount: payload.priceAfterDiscount,
+      images: payload.images,
+      items: payload.items,
+      notifyCustomers: true,
+    );
+
+    if (!mounted) return;
+    await playBakeryCelebrationSound(_celebrationPlayer);
+    setState(() {
+      _confettiToken++;
+      _resetForm();
+    });
+    await showBakeryUpdateBanner(context, title: strings.managerDealPublished);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+  }
+
+  Future<void> _publishDeal() => _saveDeal();
 
   @override
   void dispose() {
@@ -772,44 +1351,6 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
     );
     if (picked == null || takenIds.contains(picked)) return;
     setState(() => _selectedIds.add(picked));
-  }
-
-  Future<void> _publishDeal() async {
-    if (!_canPublish) return;
-    final strings = _s;
-    final catalog = CatalogStore.instance;
-    final products = _selectedIds.map((id) => catalog.findById(id)!).toList();
-
-    final titleRaw = _title.text.trim();
-    final autoTitleHe = products.map((p) => p['nameHe']).join(' + ');
-    final autoTitleEn = products.map((p) => p['nameEn']).join(' + ');
-    final titleHe = titleRaw.isNotEmpty ? titleRaw : autoTitleHe;
-    final titleEn = titleRaw.isNotEmpty ? titleRaw : autoTitleEn;
-    final descRaw = _desc.text.trim();
-    final priceText = _price.text.trim().contains('₪') ? _price.text.trim() : '${_price.text.trim()}₪';
-    final expiresAt = DateTime.now().add(Duration(days: _validityDays));
-
-    await ManagerStore.instance.addDeal(
-      titleHe: titleHe,
-      titleEn: titleEn,
-      descHe: descRaw,
-      descEn: descRaw,
-      expiresAtMs: expiresAt.millisecondsSinceEpoch,
-      priceAfterDiscount: priceText,
-      images: products.map((p) => p['image']!).toList(),
-      items: [
-        for (final p in products)
-          {'id': p['id'], 'quantity': '1', 'price': p['price']},
-      ],
-      notifyCustomers: true,
-    );
-
-    if (!mounted) return;
-    await playBakeryCelebrationSound(_celebrationPlayer);
-    setState(() => _confettiToken++);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.managerDealPublished)));
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (mounted) Navigator.pop(context);
   }
 
   Widget _dealSectionTitle(BuildContext context, String title, {String? subtitle}) {
@@ -958,18 +1499,66 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
   @override
   Widget build(BuildContext context) {
     final strings = _s;
+    final appointments = ManagerStore.instance.isAppointmentCustomerMode;
     return ManagerSubPage(
       body: Stack(
         children: [
           ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
+              ListenableBuilder(
+                listenable: ManagerStore.instance,
+                builder: (context, _) {
+                  final deals = ManagerStore.instance.allDeals;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              strings.managerActiveDeals,
+                              style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          if (_editingDealId != null)
+                            TextButton(
+                              onPressed: () => setState(_resetForm),
+                              child: Text(strings.managerNewDeal),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (deals.isEmpty)
+                        Text(strings.managerNoActiveDeals, style: BakeryTheme.subtitleText(context))
+                      else
+                        ...deals.map((d) => _existingDealTile(context, d)),
+                      if (_editingDealId != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          strings.managerEditingDeal,
+                          style: BakeryTheme.text(
+                            context,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: BakeryTheme.accent(context),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                },
+              ),
               _Mp(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _dealSectionTitle(context, strings.managerDealProducts),
+                    _dealSectionTitle(
+                      context,
+                      appointments ? strings.managerDealServices : strings.managerDealProducts,
+                    ),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -986,7 +1575,7 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
                     if (_selectedIds.isEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
-                        strings.managerDealPickProductsHint,
+                        appointments ? strings.managerDealPickServicesHint : strings.managerDealPickProductsHint,
                         style: BakeryTheme.subtitleText(context, fontSize: 12, height: 1.3),
                       ),
                     ],
@@ -1004,7 +1593,7 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
                       onChanged: (_) => setState(() {}),
                       decoration: bakeryInputDecoration(
                         context,
-                        label: strings.managerDealPrice,
+                        label: appointments ? strings.managerDealServiceDiscount : strings.managerDealPrice,
                         icon: Icons.payments_outlined,
                       ),
                     ),
@@ -1056,8 +1645,8 @@ class _ManagerNewDealPageState extends State<ManagerNewDealPage> {
               Opacity(
                 opacity: _canPublish ? 1 : 0.45,
                 child: _MpButton(
-                  icon: Icons.celebration_outlined,
-                  label: strings.managerPublishDeal,
+                  icon: _editingDealId != null ? Icons.save_outlined : Icons.celebration_outlined,
+                  label: _editingDealId != null ? strings.managerSaveDealChanges : strings.managerPublishDeal,
                   onPressed: _canPublish ? _publishDeal : () {},
                 ),
               ),
@@ -1318,33 +1907,397 @@ class ManagerOrderRestrictionsPage extends StatefulWidget {
 
 class _ManagerOrderRestrictionsPageState extends State<ManagerOrderRestrictionsPage> {
   late final TextEditingController _maxOrdersCtrl;
+  late final TextEditingController _durationCtrl;
+  OrderLimitPeriod _draftMaxOrdersPeriod = OrderLimitPeriod.day;
+  var _scheduleLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _maxOrdersCtrl = TextEditingController(
-      text: '${OrderRestrictionsStore.instance.maxOrders}',
-    );
+    final store = OrderRestrictionsStore.instance;
+    _maxOrdersCtrl = TextEditingController(text: '${store.maxOrders}');
+    _durationCtrl = TextEditingController(text: '30');
+    _draftMaxOrdersPeriod = store.maxOrdersPeriod;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAppointmentScheduleIfNeeded());
+  }
+
+  Future<void> _loadAppointmentScheduleIfNeeded() async {
+    if (!ManagerStore.instance.isAppointmentCustomerMode) return;
+    final businessId = ManagerStore.instance.linkedBusinessId;
+    await AppointmentScheduleStore.instance.load(businessId: businessId);
+    if (!mounted) return;
+    setState(() {
+      _durationCtrl.text = '${AppointmentScheduleStore.instance.slotDurationMinutes}';
+      _scheduleLoaded = true;
+    });
   }
 
   @override
   void dispose() {
     _maxOrdersCtrl.dispose();
+    _durationCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickCutoffTime(BuildContext context) async {
+  void _resetMaxOrdersDraft() {
+    final store = OrderRestrictionsStore.instance;
+    _maxOrdersCtrl.text = '${store.maxOrders}';
+    _draftMaxOrdersPeriod = store.maxOrdersPeriod;
+  }
+
+  Future<void> _confirmMaxOrdersLimit() async {
+    final strings = _s;
+    final parsed = int.tryParse(_maxOrdersCtrl.text.trim());
+    if (parsed == null || parsed < 1 || parsed > 9999) {
+      unawaited(showBakeryNoticeBanner(context, title: strings.managerOrderMaxInvalid, isError: true));
+      return;
+    }
+    final store = OrderRestrictionsStore.instance;
+    await store.setMaxOrdersPeriod(_draftMaxOrdersPeriod);
+    await store.setMaxOrders(parsed);
+    if (!mounted) return;
+    setState(_resetMaxOrdersDraft);
+    await showBakeryUpdateBanner(context, title: strings.managerOrderMaxSaved);
+  }
+
+  bool _maxOrdersDraftMatchesStore() {
+    final store = OrderRestrictionsStore.instance;
+    final parsed = int.tryParse(_maxOrdersCtrl.text.trim());
+    return parsed == store.maxOrders && _draftMaxOrdersPeriod == store.maxOrdersPeriod;
+  }
+
+  Future<void> _pickDayStartTime(BuildContext context, int weekday) async {
     final store = OrderRestrictionsStore.instance;
     final picked = await showTimePicker(
       context: context,
-      initialTime: store.cutoffTime,
+      initialTime: store.hoursForWeekday(weekday).start,
     );
     if (picked == null) return;
-    await store.setCutoffTime(picked);
+    await store.setDayStartTime(weekday, picked);
   }
 
-  void _syncMaxOrdersField() {
-    _maxOrdersCtrl.text = '${OrderRestrictionsStore.instance.maxOrders}';
+  Future<void> _pickDayEndTime(BuildContext context, int weekday) async {
+    final store = OrderRestrictionsStore.instance;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: store.hoursForWeekday(weekday).end,
+    );
+    if (picked == null) return;
+    await store.setDayEndTime(weekday, picked);
+  }
+
+  String _formatTimeLabel(TimeOfDay time) {
+    final h = time.hour.toString().padLeft(2, '0');
+    final m = time.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  Widget _buildDayHoursRow(
+    BuildContext context,
+    AppStrings strings,
+    OrderRestrictionsStore store,
+    int weekday,
+  ) {
+    final day = store.hoursForWeekday(weekday);
+    final dayName = AppointmentStrings.dayName(weekday);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(dayName, style: BakeryTheme.text(context, fontWeight: FontWeight.w700)),
+            value: day.enabled,
+            onChanged: (v) => store.setDayEnabled(weekday, v),
+          ),
+          if (day.enabled)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickDayStartTime(context, weekday),
+                    child: Text('${strings.managerOrderHoursFrom} ${_formatTimeLabel(day.start)}'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickDayEndTime(context, weekday),
+                    child: Text('${strings.managerOrderHoursTo} ${_formatTimeLabel(day.end)}'),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAppointmentDayStartTime(BuildContext context, int weekday) async {
+    final store = AppointmentScheduleStore.instance;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: store.hoursForWeekday(weekday).start,
+    );
+    if (picked == null) return;
+    await store.setDayStartTime(weekday, picked);
+  }
+
+  Future<void> _pickAppointmentDayEndTime(BuildContext context, int weekday) async {
+    final store = AppointmentScheduleStore.instance;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: store.hoursForWeekday(weekday).end,
+    );
+    if (picked == null) return;
+    await store.setDayEndTime(weekday, picked);
+  }
+
+  Future<void> _saveAppointmentDuration() async {
+    final strings = _s;
+    final parsed = int.tryParse(_durationCtrl.text.trim());
+    if (parsed == null || parsed < 10 || parsed > 240) {
+      unawaited(showBakeryNoticeBanner(context, title: strings.managerAppointmentDurationInvalid, isError: true));
+      return;
+    }
+    await AppointmentScheduleStore.instance.setSlotDurationMinutes(parsed);
+    if (!mounted) return;
+    await showBakeryUpdateBanner(context, title: strings.managerAppointmentScheduleSaved);
+  }
+
+  Widget _buildAppointmentDayHoursRow(
+    BuildContext context,
+    AppStrings strings,
+    AppointmentScheduleStore store,
+    int weekday,
+  ) {
+    final day = store.hoursForWeekday(weekday);
+    final dayName = AppointmentStrings.dayName(weekday);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(dayName, style: BakeryTheme.text(context, fontWeight: FontWeight.w700)),
+            value: day.enabled,
+            onChanged: (v) => store.setDayEnabled(weekday, v),
+          ),
+          if (day.enabled)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickAppointmentDayStartTime(context, weekday),
+                    child: Text('${strings.managerOrderHoursFrom} ${_formatTimeLabel(day.start)}'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickAppointmentDayEndTime(context, weekday),
+                    child: Text('${strings.managerOrderHoursTo} ${_formatTimeLabel(day.end)}'),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppointmentScheduleBody(BuildContext context, AppStrings strings) {
+    if (!_scheduleLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final store = AppointmentScheduleStore.instance;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        _Mp(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                strings.managerAppointmentHoursSection,
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(strings.managerAppointmentHoursHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
+              const SizedBox(height: 12),
+              Text(
+                strings.managerOrderHoursDays,
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              for (final weekday in AppointmentScheduleStore.weekdayDisplayOrder)
+                _buildAppointmentDayHoursRow(context, strings, store, weekday),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _Mp(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                strings.managerAppointmentDurationSection,
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(strings.managerAppointmentDurationHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _durationCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: strings.managerAppointmentDurationLabel,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _MpButton(
+                icon: Icons.check_rounded,
+                label: strings.confirm,
+                onPressed: _saveAppointmentDuration,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductRestrictionsBody(
+    BuildContext context,
+    AppStrings strings,
+    OrderRestrictionsStore store,
+    int currentCount,
+    String periodLabel,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        _Mp(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                strings.managerOrderHoursSection,
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(strings.managerOrderHoursHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(strings.managerOrderHoursSection, style: BakeryTheme.text(context)),
+                value: store.orderHoursEnabled,
+                onChanged: (v) => store.setOrderHoursEnabled(v),
+              ),
+              if (store.orderHoursEnabled) ...[
+                const SizedBox(height: 8),
+                Text(
+                  strings.managerOrderHoursDays,
+                  style: BakeryTheme.text(context, fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                for (final weekday in OrderRestrictionsStore.weekdayDisplayOrder)
+                  _buildDayHoursRow(context, strings, store, weekday),
+                const SizedBox(height: 8),
+                Text(
+                  store.scheduleSummary(strings),
+                  style: BakeryTheme.subtitleText(context, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _Mp(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                strings.managerOrderMaxSection,
+                style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(strings.managerOrderMaxHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(strings.managerOrderMaxSection, style: BakeryTheme.text(context)),
+                value: store.maxOrdersEnabled,
+                onChanged: (v) async {
+                  await store.setMaxOrdersEnabled(v);
+                  if (mounted) setState(_resetMaxOrdersDraft);
+                },
+              ),
+              if (store.maxOrdersEnabled) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _maxOrdersCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: strings.managerOrderMaxCount,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<OrderLimitPeriod>(
+                  segments: [
+                    ButtonSegment(
+                      value: OrderLimitPeriod.day,
+                      label: Text(strings.orderLimitPeriodDay),
+                    ),
+                    ButtonSegment(
+                      value: OrderLimitPeriod.week,
+                      label: Text(strings.orderLimitPeriodWeek),
+                    ),
+                  ],
+                  selected: {_draftMaxOrdersPeriod},
+                  onSelectionChanged: (s) {
+                    if (s.isEmpty) return;
+                    setState(() => _draftMaxOrdersPeriod = s.first);
+                  },
+                ),
+                const SizedBox(height: 14),
+                Builder(
+                  builder: (context) {
+                    final parsed = int.tryParse(_maxOrdersCtrl.text.trim());
+                    final canConfirm = !_maxOrdersDraftMatchesStore() &&
+                        parsed != null &&
+                        parsed >= 1 &&
+                        parsed <= 9999;
+                    return Opacity(
+                      opacity: canConfirm ? 1 : 0.45,
+                      child: _MpButton(
+                        icon: Icons.check_rounded,
+                        label: strings.confirm,
+                        onPressed: canConfirm ? _confirmMaxOrdersLimit : () {},
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  strings.managerOrderCurrentCount(currentCount),
+                  style: BakeryTheme.subtitleText(context),
+                ),
+                Text(
+                  '${strings.managerOrderMaxCount}: ${store.maxOrders} · $periodLabel',
+                  style: BakeryTheme.subtitleText(context, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -1352,116 +2305,22 @@ class _ManagerOrderRestrictionsPageState extends State<ManagerOrderRestrictionsP
     final strings = _s;
     return ManagerSubPage(
       body: ListenableBuilder(
-        listenable: Listenable.merge([OrderRestrictionsStore.instance, BusinessStore.instance]),
+        listenable: Listenable.merge([
+          OrderRestrictionsStore.instance,
+          BusinessStore.instance,
+          ManagerStore.instance,
+          AppointmentScheduleStore.instance,
+        ]),
         builder: (context, _) {
+          if (ManagerStore.instance.isAppointmentCustomerMode) {
+            return _buildAppointmentScheduleBody(context, strings);
+          }
           final store = OrderRestrictionsStore.instance;
-          final currentCount = store.currentOrderCount();
+          final currentCount = store.currentProductUnitCount();
           final periodLabel = store.maxOrdersPeriod == OrderLimitPeriod.day
               ? strings.orderLimitPeriodDay
               : strings.orderLimitPeriodWeek;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-            children: [
-              _Mp(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      strings.managerOrderCutoffSection,
-                      style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(strings.managerOrderCutoffHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(strings.managerOrderCutoffSection, style: BakeryTheme.text(context)),
-                      value: store.cutoffEnabled,
-                      onChanged: (v) => store.setCutoffEnabled(v),
-                    ),
-                    if (store.cutoffEnabled) ...[
-                      const SizedBox(height: 4),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(store.cutoffTimeLabel(strings), style: BakeryTheme.text(context, fontSize: 22)),
-                        trailing: const Icon(Icons.schedule_rounded),
-                        onTap: () => _pickCutoffTime(context),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              _Mp(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      strings.managerOrderMaxSection,
-                      style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(strings.managerOrderMaxHint, style: BakeryTheme.subtitleText(context, fontSize: 13)),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(strings.managerOrderMaxSection, style: BakeryTheme.text(context)),
-                      value: store.maxOrdersEnabled,
-                      onChanged: (v) => store.setMaxOrdersEnabled(v),
-                    ),
-                    if (store.maxOrdersEnabled) ...[
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _maxOrdersCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: strings.managerOrderMaxCount,
-                          border: const OutlineInputBorder(),
-                        ),
-                        onSubmitted: (v) {
-                          final n = int.tryParse(v.trim());
-                          if (n != null) store.setMaxOrders(n);
-                          _syncMaxOrdersField();
-                        },
-                        onEditingComplete: () {
-                          final n = int.tryParse(_maxOrdersCtrl.text.trim());
-                          if (n != null) store.setMaxOrders(n);
-                          _syncMaxOrdersField();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      SegmentedButton<OrderLimitPeriod>(
-                        segments: [
-                          ButtonSegment(
-                            value: OrderLimitPeriod.day,
-                            label: Text(strings.orderLimitPeriodDay),
-                          ),
-                          ButtonSegment(
-                            value: OrderLimitPeriod.week,
-                            label: Text(strings.orderLimitPeriodWeek),
-                          ),
-                        ],
-                        selected: {store.maxOrdersPeriod},
-                        onSelectionChanged: (s) {
-                          if (s.isEmpty) return;
-                          store.setMaxOrdersPeriod(s.first);
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        strings.managerOrderCurrentCount(currentCount),
-                        style: BakeryTheme.subtitleText(context),
-                      ),
-                      Text(
-                        '${strings.managerOrderMaxCount}: ${store.maxOrders} · $periodLabel',
-                        style: BakeryTheme.subtitleText(context, fontSize: 12),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          );
+          return _buildProductRestrictionsBody(context, strings, store, currentCount, periodLabel);
         },
       ),
     );
@@ -1477,58 +2336,48 @@ class ManagerStorePage extends StatefulWidget {
 
 class _ManagerStorePageState extends State<ManagerStorePage> {
   bool _addingProduct = false;
-  bool _addingDrink = false;
   int _formSession = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ManagerStore.instance.ensureDemoCatalogReady();
+      if (!mounted) return;
+      if (CatalogStore.instance.shouldShowManagerEmptyState) {
+        await showCatalogSetupPromptIfNeeded(context);
+      }
+    });
+  }
 
   void _openProductForm() => setState(() {
         _formSession++;
         _addingProduct = true;
-        _addingDrink = false;
-      });
-
-  void _openDrinkForm() => setState(() {
-        _formSession++;
-        _addingProduct = false;
-        _addingDrink = true;
       });
 
   void _closeForm() => setState(() {
         _addingProduct = false;
-        _addingDrink = false;
       });
 
   @override
   Widget build(BuildContext context) {
     final strings = _s;
     final hebrew = AppLocale.instance.isHebrew;
+    final appointments = ManagerStore.instance.isAppointmentCustomerMode;
     return ManagerSubPage(
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _MpButton(
-                  icon: Icons.add,
-                  label: strings.managerAddProduct,
-                  onPressed: _openProductForm,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _MpButton(
-                  icon: Icons.local_cafe_outlined,
-                  label: strings.managerAddDrink,
-                  onPressed: _openDrinkForm,
-                ),
-              ),
-            ],
+          _MpButton(
+            icon: appointments ? Icons.medical_services_outlined : Icons.add,
+            label: appointments ? strings.managerAddService : strings.managerAddProduct,
+            onPressed: _openProductForm,
           ),
-          if (_addingProduct || _addingDrink) ...[
+          if (_addingProduct) ...[
             const SizedBox(height: 12),
             _ManagerAddItemForm(
-              key: ValueKey('add_${_formSession}_${_addingDrink ? 'd' : 'p'}'),
-              isDrink: _addingDrink,
+              key: ValueKey('add_$_formSession'),
+              isDrink: false,
               onDone: _closeForm,
             ),
           ],
@@ -1538,33 +2387,69 @@ class _ManagerStorePageState extends State<ManagerStorePage> {
             builder: (context, _) {
               final catalog = CatalogStore.instance;
               final mgr = ManagerStore.instance;
+              final catalogEmpty = catalog.shouldShowManagerEmptyState;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(strings.managerCatalogProducts, style: BakeryTheme.text(context, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  ...catalog.products.map((item) => _catalogItemTile(context, item, isDrink: false, hebrew: hebrew)),
-                  const SizedBox(height: 12),
-                  Text(strings.managerCatalogDrinks, style: BakeryTheme.text(context, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  ...catalog.drinks.map((item) => _catalogItemTile(context, item, isDrink: true, hebrew: hebrew)),
+                  if (catalogEmpty)
+                    CatalogEmptyState(message: strings.catalogEmptyManagerSub)
+                  else ...[
+                    Text(
+                      appointments ? strings.managerCatalogServices : strings.managerCatalogProducts,
+                      style: BakeryTheme.text(context, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    if (catalog.products.isEmpty)
+                      Text(strings.catalogEmptyProductsSection, style: BakeryTheme.subtitleText(context))
+                    else
+                      ...catalog.products.map((item) => _catalogItemTile(context, item, isDrink: false, hebrew: hebrew)),
+                  ],
                   const SizedBox(height: 16),
                   Text(strings.managerActiveDeals, style: BakeryTheme.text(context, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  if (mgr.activeCustomDeals.isEmpty)
+                  if (mgr.activeCustomDeals.isEmpty && mgr.allDeals.isEmpty)
                     Text(strings.managerNoAnnouncement, style: BakeryTheme.subtitleText(context))
                   else
-                    ...mgr.activeCustomDeals.map(
+                    ...mgr.allDeals.map(
                       (d) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _Mp(
                           padding: const EdgeInsets.all(12),
                           child: Row(
                             children: [
-                              Expanded(child: Text(CatalogData.dealField(d, 'title'), style: BakeryTheme.text(context))),
+                              _dealListImages(context, d),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      CatalogData.dealField(d, 'title'),
+                                      style: BakeryTheme.text(context, fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${d['priceAfterDiscount']} · ${CatalogData.dealField(d, 'valid')}',
+                                      style: BakeryTheme.subtitleText(context, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => openManagerPage(
+                                  context,
+                                  ManagerNewDealPage(initialDealId: d['id'] as String),
+                                ),
+                                child: Text(strings.managerEditDeal),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
-                                onPressed: () => ManagerStore.instance.removeDeal(d['id'] as String),
+                                onPressed: () async {
+                                  await ManagerStore.instance.removeDeal(d['id'] as String);
+                                  if (context.mounted) {
+                                    await showBakeryUpdateBanner(context, title: strings.managerDealDeleted);
+                                  }
+                                },
                               ),
                             ],
                           ),
@@ -1862,10 +2747,9 @@ class ManagerFaqPage extends StatefulWidget {
 class _ManagerFaqPageState extends State<ManagerFaqPage> {
   Future<void> _openEditor({int? index, FaqItem? existing}) async {
     final strings = _s;
-    final qHeCtrl = TextEditingController(text: existing?.qHe ?? '');
-    final aHeCtrl = TextEditingController(text: existing?.aHe ?? '');
-    final qEnCtrl = TextEditingController(text: existing?.qEn ?? '');
-    final aEnCtrl = TextEditingController(text: existing?.aEn ?? '');
+    final sourceHebrew = AppLocale.instance.isHebrew;
+    final qCtrl = TextEditingController(text: existing?.question(sourceHebrew) ?? '');
+    final aCtrl = TextEditingController(text: existing?.answer(sourceHebrew) ?? '');
     var saving = false;
 
     final saved = await showModalBottomSheet<bool>(
@@ -1882,24 +2766,27 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
             builder: (context, setSheetState) {
               Future<void> save() async {
                 if (saving) return;
-                final item = FaqItem(
-                  qHe: qHeCtrl.text.trim(),
-                  aHe: aHeCtrl.text.trim(),
-                  qEn: qEnCtrl.text.trim(),
-                  aEn: aEnCtrl.text.trim(),
-                );
-                if (item.qHe.isEmpty ||
-                    item.aHe.isEmpty ||
-                    item.qEn.isEmpty ||
-                    item.aEn.isEmpty) {
-                  ScaffoldMessenger.of(sheetContext).showSnackBar(
-                    SnackBar(content: Text(strings.managerFaqRequired)),
-                  );
+                final qText = qCtrl.text.trim();
+                final aText = aCtrl.text.trim();
+                if (qText.isEmpty || aText.isEmpty) {
+                  unawaited(showBakeryNoticeBanner(sheetContext, title: strings.managerFaqRequired, isError: true));
                   return;
                 }
                 setSheetState(() => saving = true);
-                await FaqStore.instance.upsertAt(index, item);
-                if (sheetContext.mounted) Navigator.pop(sheetContext, true);
+                try {
+                  final qB = await LocaleTranslate.toBilingual(qText, sourceHebrew: sourceHebrew);
+                  final aB = await LocaleTranslate.toBilingual(aText, sourceHebrew: sourceHebrew);
+                  final item = FaqItem(
+                    qHe: qB.he,
+                    aHe: aB.he,
+                    qEn: qB.en,
+                    aEn: aB.en,
+                  );
+                  await FaqStore.instance.upsertAt(index, item);
+                  if (sheetContext.mounted) Navigator.pop(sheetContext, true);
+                } finally {
+                  if (sheetContext.mounted) setSheetState(() => saving = false);
+                }
               }
 
               return SingleChildScrollView(
@@ -1911,36 +2798,29 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
                       textAlign: TextAlign.center,
                       style: BakeryTheme.text(sheetContext, fontSize: 20, fontWeight: FontWeight.w800),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      strings.managerUpdateAutoHint,
+                      textAlign: TextAlign.center,
+                      style: BakeryTheme.subtitleText(sheetContext, fontSize: 13, height: 1.35),
+                    ),
                     const SizedBox(height: 16),
                     TextField(
-                      controller: qHeCtrl,
+                      controller: qCtrl,
                       enabled: !saving,
-                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqQuestionHe, icon: Icons.quiz_outlined),
+                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqQuestion),
                     ),
                     const SizedBox(height: 10),
                     TextField(
-                      controller: aHeCtrl,
+                      controller: aCtrl,
                       enabled: !saving,
                       maxLines: 3,
-                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqAnswerHe, icon: Icons.chat_bubble_outline),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: qEnCtrl,
-                      enabled: !saving,
-                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqQuestionEn, icon: Icons.quiz_outlined),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: aEnCtrl,
-                      enabled: !saving,
-                      maxLines: 3,
-                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqAnswerEn, icon: Icons.chat_bubble_outline),
+                      decoration: bakeryInputDecoration(sheetContext, label: strings.managerFaqAnswer),
                     ),
                     const SizedBox(height: 18),
                     _MpButton(
                       icon: Icons.save_outlined,
-                      label: strings.confirm,
+                      label: saving ? strings.managerUpdateTranslating : strings.confirm,
                       onPressed: saving ? () {} : save,
                     ),
                   ],
@@ -1952,13 +2832,11 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
       },
     );
 
-    qHeCtrl.dispose();
-    aHeCtrl.dispose();
-    qEnCtrl.dispose();
-    aEnCtrl.dispose();
+    qCtrl.dispose();
+    aCtrl.dispose();
 
     if (saved == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.managerFaqSaved)));
+      await showBakeryUpdateBanner(context, title: strings.managerFaqSaved);
     }
   }
 
@@ -1982,7 +2860,7 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
     if (ok == true) {
       await FaqStore.instance.removeAt(index);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.managerFaqSaved)));
+        await showBakeryUpdateBanner(context, title: strings.managerFaqSaved);
       }
     }
   }
@@ -2046,6 +2924,8 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
                 }),
               const SizedBox(height: 8),
               _MpButton(icon: Icons.add_circle_outline, label: strings.managerFaqAdd, onPressed: () => _openEditor()),
+              const SizedBox(height: 28),
+              const _ManagerStoreTermsSection(),
             ],
           );
         },
@@ -2054,17 +2934,18 @@ class _ManagerFaqPageState extends State<ManagerFaqPage> {
   }
 }
 
-class ManagerStoreTermsPage extends StatefulWidget {
-  const ManagerStoreTermsPage({super.key});
+class _ManagerStoreTermsSection extends StatefulWidget {
+  const _ManagerStoreTermsSection();
 
   @override
-  State<ManagerStoreTermsPage> createState() => _ManagerStoreTermsPageState();
+  State<_ManagerStoreTermsSection> createState() => _ManagerStoreTermsSectionState();
 }
 
-class _ManagerStoreTermsPageState extends State<ManagerStoreTermsPage> {
+class _ManagerStoreTermsSectionState extends State<_ManagerStoreTermsSection> {
   final _controller = TextEditingController();
   var _saving = false;
   var _loaded = false;
+  var _expanded = false;
 
   @override
   void initState() {
@@ -2097,23 +2978,21 @@ class _ManagerStoreTermsPageState extends State<ManagerStoreTermsPage> {
     if (_saving) return;
     final slug = ManagerStore.instance.linkedBusinessSlug?.trim();
     if (slug == null || slug.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.managerStoreTermsNoStore)),
-      );
+      unawaited(showBakeryNoticeBanner(context, title: strings.managerStoreTermsNoStore, isError: true));
       return;
     }
     setState(() => _saving = true);
     try {
       await StoreTermsStore.instance.save(_controller.text);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.managerStoreTermsSaved)),
-      );
+      await showBakeryUpdateBanner(context, title: strings.managerStoreTermsSaved);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      unawaited(showBakeryNoticeBanner(
+        context,
+        title: e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      ));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -2124,79 +3003,104 @@ class _ManagerStoreTermsPageState extends State<ManagerStoreTermsPage> {
     final strings = _s;
     final hasStore = ManagerStore.instance.linkedBusinessSlug?.trim().isNotEmpty == true;
 
-    return ManagerSubPage(
-      body: ListenableBuilder(
-        listenable: Listenable.merge([StoreTermsStore.instance, ManagerStore.instance]),
-        builder: (context, _) {
-          if (!_loaded) {
-            return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
-          }
+    return ListenableBuilder(
+      listenable: Listenable.merge([StoreTermsStore.instance, ManagerStore.instance]),
+      builder: (context, _) {
+        if (!_loaded) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        return _Mp(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Mp(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                    child: Row(
                       children: [
-                        Icon(Icons.gavel_outlined, color: BakeryTheme.accent(context), size: 28),
+                        Icon(Icons.gavel_outlined, color: BakeryTheme.accent(context), size: 26),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            strings.managerStoreTermsTitle,
-                            style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                strings.managerStoreTermsTitle,
+                                style: BakeryTheme.text(context, fontSize: 18, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                strings.managerStoreTermsHint,
+                                maxLines: _expanded ? null : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+                              ),
+                            ],
                           ),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          child: Icon(Icons.expand_more, color: BakeryTheme.accent(context), size: 24),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      strings.managerStoreTermsHint,
-                      style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
-              if (!hasStore)
-                _Mp(
-                  child: Text(
-                    strings.managerStoreTermsNoStore,
-                    textAlign: TextAlign.center,
-                    style: BakeryTheme.subtitleText(context, height: 1.4),
-                  ),
-                )
-              else ...[
-                _Mp(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                  child: TextField(
-                    controller: _controller,
-                    enabled: !_saving,
-                    maxLines: 16,
-                    minLines: 10,
-                    textAlignVertical: TextAlignVertical.top,
-                    style: BakeryTheme.text(context, fontSize: 15, height: 1.45),
-                    decoration: bakeryInputDecoration(
-                      context,
-                      label: strings.managerStoreTermsField,
-                      icon: Icons.article_outlined,
-                    ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!hasStore)
+                        Text(
+                          strings.managerStoreTermsNoStore,
+                          textAlign: TextAlign.center,
+                          style: BakeryTheme.subtitleText(context, height: 1.4),
+                        )
+                      else ...[
+                        TextField(
+                          controller: _controller,
+                          enabled: !_saving,
+                          maxLines: 16,
+                          minLines: 8,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: BakeryTheme.text(context, fontSize: 15, height: 1.45),
+                          decoration: bakeryInputDecoration(
+                            context,
+                            label: strings.managerStoreTermsField,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _MpButton(
+                          icon: Icons.save_outlined,
+                          label: strings.confirm,
+                          onPressed: _saving ? () {} : _save,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                _MpButton(
-                  icon: Icons.save_outlined,
-                  label: strings.confirm,
-                  onPressed: _saving ? () {} : _save,
-                ),
-              ],
+                crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 220),
+                sizeCurve: Curves.easeInOut,
+              ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2319,9 +3223,7 @@ class ManagerSubscriptionsPage extends StatelessWidget {
     final name = tier == ManagerSubscriptionTier.premium
         ? _s.managerSubscriptionsPremium
         : _s.managerSubscriptionsUltimate;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_s.managerSubscriptionsPlanChosen(name))),
-    );
+    await showBakeryUpdateBanner(context, title: _s.managerSubscriptionsPlanChosen(name));
   }
 }
 
@@ -2449,8 +3351,8 @@ class _SubscriptionPlanCard extends StatelessWidget {
                 child: FilledButton(
                   onPressed: onSelect,
                   style: FilledButton.styleFrom(
-                    backgroundColor: isSelected ? Colors.green.shade700 : accent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: isSelected ? Colors.green.shade700 : BakerySquarePalette.squareFill(context),
+                    foregroundColor: isSelected ? Colors.white : BakeryTheme.body(context),
                     padding: EdgeInsets.zero,
                     textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2465,6 +3367,94 @@ class _SubscriptionPlanCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Operator legal protection summary for business owners (template — not legal advice).
+class ManagerLegalProtectionPage extends StatelessWidget {
+  const ManagerLegalProtectionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final hebrew = AppLocale.instance.isHebrew;
+    final strings = _s;
+
+    return ManagerSubPage(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        children: [
+          Text(
+            PlatformLegalNotice.managerPageTitle(hebrew),
+            style: BakeryTheme.text(context, fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            PlatformLegalNotice.managerPageSubtitle(hebrew),
+            style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          _Mp(
+            child: Text(
+              PlatformLegalNotice.fraudDisclaimer(hebrew),
+              style: BakeryTheme.text(context, fontSize: 14, height: 1.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _legalSection(
+            context,
+            title: hebrew ? 'על מה אתם חשופים כמפעיל פלטפורמה' : 'What you may be exposed to as platform operator',
+            items: PlatformLegalNotice.exposureAreas(hebrew),
+          ),
+          const SizedBox(height: 14),
+          _legalSection(
+            context,
+            title: hebrew ? 'מה מגן עליכם (בתנאי השימוש)' : 'What protects you (in Terms of Use)',
+            items: PlatformLegalNotice.operatorProtections(hebrew),
+          ),
+          const SizedBox(height: 14),
+          _legalSection(
+            context,
+            title: hebrew ? 'חובות מוכרים (בעלי עסק)' : 'Seller (business owner) duties',
+            items: PlatformLegalNotice.sellerDuties(hebrew),
+          ),
+          const SizedBox(height: 16),
+          _MpButton(
+            icon: Icons.description_outlined,
+            label: strings.managerLegalFullTerms,
+            onPressed: () => LegalDocumentScreen.open(context, LegalDocumentKind.terms),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            PlatformLegalNotice.lawyerNote(hebrew),
+            textAlign: TextAlign.center,
+            style: BakeryTheme.subtitleText(context, fontSize: 12, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legalSection(BuildContext context, {required String title, required List<String> items}) {
+    return _Mp(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: BakeryTheme.text(context, fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 10),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• ', style: BakeryTheme.text(context, fontWeight: FontWeight.w800)),
+                  Expanded(child: Text(item, style: BakeryTheme.subtitleText(context, fontSize: 14, height: 1.4))),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

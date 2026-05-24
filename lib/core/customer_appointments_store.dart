@@ -4,9 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../saas/models/appointment_models.dart';
+import 'safe_change_notifier.dart';
 
 /// Locally saved customer phone + appointment ids for the in-app history tab.
-class CustomerAppointmentsStore extends ChangeNotifier {
+class CustomerAppointmentsStore extends ChangeNotifier with SafeChangeNotifier {
   CustomerAppointmentsStore._();
 
   static final CustomerAppointmentsStore instance = CustomerAppointmentsStore._();

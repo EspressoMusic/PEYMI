@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_colors.dart';
 import 'app_fonts.dart';
+import 'safe_change_notifier.dart';
 
 enum AppThemeMode { calm, light, dark }
 
@@ -57,7 +58,7 @@ class BakeryDecor extends ThemeExtension<BakeryDecor> {
   }
 }
 
-class AppThemeController extends ChangeNotifier {
+class AppThemeController extends ChangeNotifier with SafeChangeNotifier {
   AppThemeController._();
 
   static final AppThemeController instance = AppThemeController._();
@@ -116,20 +117,22 @@ class AppThemeController extends ChangeNotifier {
             panelBottom: Color(0xFFF1E5D4),
             cardFill: Color(0xFFF8F4EC),
             chipFill: AppColors.darkCreamSquare,
-            accent: AppColors.brown,
-            mutedText: Color(0xFF6D4C41),
+            accent: AppColors.creamInk,
+            mutedText: Color(0xFF6B5D52),
           ),
       };
 
   ThemeData _calmTheme() {
     const scaffold = Color(0xFFF4F0E8);
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.brown,
+      seedColor: AppColors.buttonFill,
       brightness: Brightness.light,
       surface: scaffold,
-      onSurface: AppColors.darkBrown,
-      primary: AppColors.brown,
-      onPrimary: Colors.white,
+      onSurface: AppColors.creamInk,
+      primary: AppColors.buttonFill,
+      onPrimary: AppColors.buttonOnFill,
+      secondary: const Color(0xFFF1E5D4),
+      onSecondary: AppColors.creamInk,
     );
     return _baseTheme(
       scheme,
@@ -139,8 +142,8 @@ class AppThemeController extends ChangeNotifier {
         panelBottom: Color(0xFFF1E5D4),
         cardFill: Color(0xFFF8F4EC),
         chipFill: AppColors.darkCreamSquare,
-        accent: AppColors.brown,
-        mutedText: Color(0xFF6D4C41),
+        accent: AppColors.creamInk,
+        mutedText: Color(0xFF6B5D52),
       ),
     );
   }
@@ -336,10 +339,41 @@ class AppThemeController extends ChangeNotifier {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: ButtonStyle(
-          backgroundColor: WidgetStatePropertyAll(scheme.primary),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return scheme.primary.withValues(alpha: 0.38);
+            }
+            return scheme.primary;
+          }),
           foregroundColor: WidgetStatePropertyAll(scheme.onPrimary),
+          minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
           textStyle: WidgetStatePropertyAll(
-            themed(fontSize: 14, fontWeight: AppFonts.regular, color: scheme.onPrimary),
+            themed(fontSize: 15, fontWeight: AppFonts.medium, color: scheme.onPrimary),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return scheme.primary.withValues(alpha: 0.45);
+            }
+            return scheme.primary;
+          }),
+          side: WidgetStateProperty.resolveWith((states) {
+            final width = states.contains(WidgetState.disabled) ? 1.2 : 1.6;
+            final color = states.contains(WidgetState.disabled)
+                ? scheme.primary.withValues(alpha: 0.35)
+                : scheme.primary;
+            return BorderSide(color: color, width: width);
+          }),
+          minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+          textStyle: WidgetStatePropertyAll(
+            themed(fontSize: 15, fontWeight: AppFonts.medium, color: scheme.primary),
           ),
         ),
       ),
@@ -354,7 +388,8 @@ class AppThemeController extends ChangeNotifier {
 }
 
 BakeryDecor bakeryDecor(BuildContext context) =>
-    Theme.of(context).extension<BakeryDecor>()!;
+    Theme.of(context).extension<BakeryDecor>() ??
+    AppThemeController.decorForMode(AppThemeController.instance.mode);
 
 /// Semantic colors that follow calm / light / dark themes.
 abstract final class BakeryTheme {
@@ -406,6 +441,10 @@ abstract final class BakeryTheme {
 
   static Color cardSurface(BuildContext context) => bakeryDecor(context).cardFill;
 
+  static Color buttonFill(BuildContext context) => scheme(context).primary;
+
+  static Color buttonOnFill(BuildContext context) => scheme(context).onPrimary;
+
   static Color appointmentTileSurface(BuildContext context) {
     return switch (AppThemeController.instance.mode) {
       AppThemeMode.dark => AppColors.darkBlueSquare,
@@ -425,7 +464,7 @@ abstract final class BakeryTheme {
     final (Color low, Color high) = switch (AppThemeController.instance.mode) {
       AppThemeMode.calm => (
           const Color(0xFFCF8F8F),
-          Color.lerp(AppColors.brown, AppColors.brownLight, 0.35)!,
+          Color.lerp(AppColors.creamInk, AppColors.darkCreamSquare, 0.45)!,
         ),
       AppThemeMode.light => (
           const Color(0x4D000000),
@@ -472,8 +511,9 @@ abstract final class BakeryTheme {
 InputDecoration bakeryInputDecoration(
   BuildContext context, {
   required String label,
-  required IconData icon,
+  IconData? icon,
   bool required = false,
+  bool multiline = false,
 }) {
   final scheme = BakeryTheme.scheme(context);
   final accent = BakeryTheme.accent(context);
@@ -492,11 +532,14 @@ InputDecoration bakeryInputDecoration(
           )
         : null,
     labelText: required ? null : label,
-    prefixIcon: Icon(icon, color: accent),
+    prefixIcon: icon != null ? Icon(icon, color: accent) : null,
     filled: true,
     fillColor: BakeryTheme.inputFill(context),
     labelStyle: BakeryTheme.subtitleText(context, fontWeight: FontWeight.w700),
     floatingLabelStyle: BakeryTheme.text(context, fontWeight: FontWeight.w800),
+    alignLabelWithHint: multiline,
+    floatingLabelBehavior: multiline ? FloatingLabelBehavior.always : FloatingLabelBehavior.auto,
+    contentPadding: multiline ? const EdgeInsets.fromLTRB(16, 22, 16, 14) : null,
     border: OutlineInputBorder(borderRadius: radius),
     enabledBorder: OutlineInputBorder(
       borderRadius: radius,

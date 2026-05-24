@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../widgets/bakery_celebration.dart';
 import '../../core/app_theme_mode.dart';
 import '../data/saas_repository.dart';
 import '../models/business_payment_settings.dart';
@@ -95,13 +98,11 @@ class _OwnerPaymentSettingsPanelState extends State<OwnerPaymentSettingsPanel> {
     try {
       await SaasRepository.instance.upsertPaymentSettings(_buildSettings());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(PaymentStrings.settingsSaved)),
-        );
+        await showBakeryUpdateBanner(context, title: PaymentStrings.settingsSaved);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        unawaited(showBakeryNoticeBanner(context, title: '$e', isError: true));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

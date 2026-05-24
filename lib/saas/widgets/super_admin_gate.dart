@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../widgets/bakery_celebration.dart';
 import '../data/saas_repository.dart';
 import '../screens/super_admin_screen.dart';
 
@@ -35,9 +38,7 @@ class _SuperAdminGateState extends State<SuperAdminGate> {
         setState(() => _checking = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Access denied')),
-          );
+          unawaited(showBakeryNoticeBanner(context, title: 'Access denied', isError: true));
           Navigator.of(context).maybePop();
         });
       }

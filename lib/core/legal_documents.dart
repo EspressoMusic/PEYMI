@@ -10,17 +10,21 @@ abstract final class LegalDocuments {
       return '''$base
 
 תוספות לבעל עסק:
-• אתם אחראים לעיבוד נתוני לקוחות, עמידה בחוק הגנת הפרטיות ומתן מענה לפניות.
-• מפעיל האפליקציה רשאי להשהות/לסגור חנות באי-תשלום מנוי או הפרת תנאים.
-• תוכן שתפרסמו (מוצרים, מבצעים, הודעות) באחריותכם בלבד.
+• Peymiz הוא פלטפורמה טכנולוגית בלבד — אינכם מוכרים בשם Peymiz.
+• אין אחריות של Peymiz להונאות, תרמיות או מחלוקות בין לקוחות לביניכם.
+• אתם אחראים לעיבוד נתוני לקוחות, עמידה בחוק ולשיפוי Peymiz מפני תביעות הנובעות מפעילותכם ותוכנכם.
+• מפעיל האפליקציה רשאי להשעות/לסגור חנות באי-תשלום מנוי, הפרת תנאים או חשד להונאה.
+• תוכן שתפרסמו (מוצרים, שירותים, מבצעים, הודעות) באחריותכם בלבד.
 • יצירת קשר למפעיל: ${LegalConfig.operatorEmail}''';
     }
     return '''$base
 
 Additional owner terms:
-• You are responsible for customer data processing and privacy law compliance.
-• The operator may suspend stores for unpaid subscription or terms violations.
-• You are solely responsible for products, deals, and announcements you publish.
+• Peymiz is a technology platform only — you are not selling on Peymiz's behalf.
+• Peymiz is not liable for fraud, scams, or disputes between you and your customers.
+• You are responsible for customer data, legal compliance, and indemnifying Peymiz for claims from your conduct and content.
+• The operator may suspend or close stores for unpaid subscription, Terms violations, or suspected fraud.
+• You are solely responsible for products, services, deals, and announcements you publish.
 • Operator contact: ${LegalConfig.operatorEmail}''';
   }
 
@@ -73,13 +77,15 @@ Part A — Privacy Policy
 
 Part B — Terms of Use
 1. Acceptance: downloading/using the app means you agree.
-2. Permitted use: personal orders, accurate information, no fraud or illegal use.
-3. Prices/stock: set by the business; pricing errors may be corrected.
-4. Cancellations/refunds: per business policy; contact via the app.
-5. Liability: service provided "as is"; operator liability limited as permitted by law.
-6. IP: app design and content belong to operator/business.
-7. Governing law: Israel (confirm venue with counsel).
-8. Contact: ${LegalConfig.operatorEmail}
+2. Platform only: Peymiz is a technology intermediary, not the seller of business listings.
+3. No seller fraud liability: we are not responsible for fraud, scams, misrepresentation, non-delivery, payment disputes, or illegal conduct by businesses or customers.
+4. Permitted use: personal orders, accurate information, no fraud or illegal use.
+5. Prices/stock: set by the business; pricing errors may be corrected.
+6. Cancellations/refunds: per business policy; contact via the app.
+7. Liability: service provided "as is"; operator liability limited as permitted by law.
+8. IP: app design and content belong to operator/business.
+9. Governing law: State of Israel (confirm venue with counsel).
+10. Contact: ${LegalConfig.operatorEmail}
 
 Note: template text — have legal counsel review before production.''';
   }

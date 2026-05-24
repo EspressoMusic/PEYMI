@@ -4,9 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../saas/data/saas_repository.dart';
 import 'manager_store.dart';
 import 'supabase/supabase_bootstrap.dart';
+import 'safe_change_notifier.dart';
 
 /// Store-specific terms/regulations — keyed by linked business slug.
-class StoreTermsStore extends ChangeNotifier {
+class StoreTermsStore extends ChangeNotifier with SafeChangeNotifier {
   StoreTermsStore._();
 
   static final StoreTermsStore instance = StoreTermsStore._();

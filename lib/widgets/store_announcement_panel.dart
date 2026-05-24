@@ -1,84 +1,177 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_fonts.dart';
 import '../core/app_locale.dart';
 import '../core/app_theme_mode.dart';
+import '../core/bakery_navigator.dart';
+import '../core/bakery_square_palette.dart';
 import 'catalog_item_image.dart';
 
-/// Customer-facing store update: text, optional image, optional dismiss control.
-class StoreAnnouncementPanel extends StatelessWidget {
-  const StoreAnnouncementPanel({
-    super.key,
+/// Centered cream square popup when the manager publishes a store update.
+Future<void> showStoreAnnouncementPopupBanner(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String imagePath = '',
+  required VoidCallback onDismiss,
+}) {
+  final host = bakeryOverlayContext ?? context;
+  return showOverlaySafely<void>(
+    context: host,
+    show: (overlayHost) => showGeneralDialog<void>(
+      context: overlayHost,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      barrierLabel: title,
+      barrierColor: Colors.black45,
+      transitionDuration: const Duration(milliseconds: 320),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, animation, _, __) {
+        return _StoreAnnouncementCenterOverlay(
+          animation: animation,
+          title: title,
+          message: message,
+          imagePath: imagePath,
+          onDismiss: onDismiss,
+        );
+      },
+    ),
+  );
+}
+
+class _StoreAnnouncementCenterOverlay extends StatefulWidget {
+  const _StoreAnnouncementCenterOverlay({
+    required this.animation,
+    required this.title,
     required this.message,
-    this.imagePath = '',
-    this.onDismiss,
-    this.compact = false,
-    this.showHeader = true,
+    required this.imagePath,
+    required this.onDismiss,
   });
 
+  final Animation<double> animation;
+  final String title;
   final String message;
   final String imagePath;
-  final VoidCallback? onDismiss;
-  final bool compact;
-  final bool showHeader;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_StoreAnnouncementCenterOverlay> createState() => _StoreAnnouncementCenterOverlayState();
+}
+
+class _StoreAnnouncementCenterOverlayState extends State<_StoreAnnouncementCenterOverlay> {
+  var _closing = false;
+
+  void _close() {
+    if (_closing) return;
+    _closing = true;
+    popThen(context, () async {
+      widget.onDismiss();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scale = CurvedAnimation(parent: widget.animation, curve: Curves.easeOutBack);
+    final fade = CurvedAnimation(parent: widget.animation, curve: Curves.easeOut);
+    final accent = BakeryTheme.accent(context);
+    final hasImage = widget.imagePath.trim().isNotEmpty;
+    final hasMessage = widget.message.trim().isNotEmpty;
     final strings = AppLocale.instance.s;
-    final hasImage = imagePath.trim().isNotEmpty;
-    final hasText = message.trim().isNotEmpty;
 
-    return Material(
-      color: BakeryTheme.accent(context).withValues(alpha: compact ? 0.1 : 0.14),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(compact ? 14 : 16, compact ? 10 : 8, compact ? 10 : 8, compact ? 10 : 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.campaign_outlined, color: BakeryTheme.accent(context), size: compact ? 20 : 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (showHeader)
-                    Text(
-                      strings.storeAnnouncementBanner,
-                      style: BakeryTheme.text(context, fontSize: compact ? 11 : 12, fontWeight: FontWeight.w800),
-                    ),
-                  if (hasImage) ...[
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CatalogItemImage(
-                        path: imagePath,
-                        height: compact ? 100 : 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        emoji: '📣',
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          onTap: _close,
+          behavior: HitTestBehavior.opaque,
+          child: const SizedBox.expand(),
+        ),
+        Center(
+          child: FadeTransition(
+            opacity: fade,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.88, end: 1).animate(scale),
+              child: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 300,
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+                  ),
+                  child: BakerySquarePalette.shell(
+                    context: context,
+                    borderRadius: 22,
+                    border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: BakerySquarePalette.shadow(context),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Icon(Icons.campaign_rounded, color: accent, size: 36),
+                          const SizedBox(height: 10),
+                          Text(
+                            widget.title,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.style(
+                              fontSize: 18,
+                              fontWeight: AppFonts.bold,
+                              height: 1.25,
+                              color: BakeryTheme.body(context),
+                            ),
+                          ),
+                          if (hasImage) ...[
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: CatalogItemImage(
+                                path: widget.imagePath,
+                                width: double.infinity,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                emoji: '📣',
+                              ),
+                            ),
+                          ],
+                          if (hasMessage) ...[
+                            const SizedBox(height: 12),
+                            Flexible(
+                              child: SingleChildScrollView(
+                                child: Text(
+                                  widget.message,
+                                  textAlign: TextAlign.center,
+                                  style: AppFonts.style(
+                                    fontSize: 15,
+                                    fontWeight: AppFonts.medium,
+                                    height: 1.45,
+                                    color: BakeryTheme.subtitle(context),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: _close,
+                            child: Text(strings.confirm),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                  if (hasText) ...[
-                    SizedBox(height: (hasImage || showHeader) ? 8 : 0),
-                    Text(
-                      message,
-                      style: BakeryTheme.subtitleText(context, fontSize: compact ? 12 : 13, height: 1.35),
-                    ),
-                  ],
-                ],
+                  ),
+                ),
               ),
             ),
-            if (onDismiss != null)
-              IconButton(
-                icon: Icon(Icons.close_rounded, color: BakeryTheme.muted(context), size: 22),
-                onPressed: onDismiss,
-                tooltip: strings.dismissAnnouncement,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

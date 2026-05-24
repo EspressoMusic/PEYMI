@@ -48,14 +48,22 @@ function Test-StoreTermsColumn {
   }
 }
 
-# Already applied?
+# Already applied? (only for default store_terms migration)
+$defaultSql = Join-Path (Split-Path -Parent $PSScriptRoot) "supabase\APPLY_STORE_TERMS.sql"
+if ((Resolve-Path -LiteralPath $SqlFile).Path -eq (Resolve-Path -LiteralPath $defaultSql).Path) {
+  $anon = $null
+  foreach ($line in Get-Content $envFile) {
+    if ($line -match '^SUPABASE_ANON_KEY=(.+)$') { $anon = $Matches[1].Trim().Trim('"').Trim("'") }
+  }
+  if ($anon -and (Test-StoreTermsColumn -BaseUrl $url -AnonKey $anon)) {
+    Write-Host "OK: businesses.store_terms already exists."
+    exit 0
+  }
+}
+
 $anon = $null
 foreach ($line in Get-Content $envFile) {
   if ($line -match '^SUPABASE_ANON_KEY=(.+)$') { $anon = $Matches[1].Trim().Trim('"').Trim("'") }
-}
-if ($anon -and (Test-StoreTermsColumn -BaseUrl $url -AnonKey $anon)) {
-  Write-Host "OK: businesses.store_terms already exists."
-  exit 0
 }
 
 if ($accessToken -and $accessToken -notmatch 'your_|paste|replace') {
@@ -99,7 +107,7 @@ else {
   exit 1
 }
 
-if ($anon) {
+if ($anon -and (Resolve-Path -LiteralPath $SqlFile).Path -eq (Resolve-Path -LiteralPath $defaultSql).Path) {
   Start-Sleep -Seconds 1
   if (Test-StoreTermsColumn -BaseUrl $url -AnonKey $anon) {
     Write-Host "Verified: businesses.store_terms exists."

@@ -24,7 +24,17 @@
   const androidPackage = cfg.androidPackage || "com.example.bakery_shop_app";
   const deepLinkScheme = cfg.deepLinkScheme || "bizmi";
   const redirectDelayMs = cfg.redirectDelayMs ?? 1600;
-  const tryOpenAppFirst = cfg.tryOpenAppFirst !== false;
+  const tryOpenAppFirst = cfg.tryOpenAppFirst === true;
+  const isWebMode =
+    queryFlag("web") === "1" ||
+    queryFlag("browse") === "1" ||
+    location.pathname.endsWith("/web");
+
+  let cachedProducts = [];
+
+  function queryFlag(name) {
+    return new URLSearchParams(location.search).get(name);
+  }
 
   const reserved = new Set([
     "super-admin",
@@ -48,8 +58,8 @@
     he: {
       brandTagline: "חנות ותורים באפליקציה",
       loading: "טוען חנות…",
-      testingBanner: "Bizmi נמצאת כרגע בבדיקות.",
-      testingLead: "כדי לצפות בחנות זו, הורידו את גרסת הבדיקה לאנדרואיד.",
+      testingBanner: "Bizmi בבדיקות",
+      testingLead: "הורידו את האפליקציה או צפו בחנות בדפדפן.",
       apkButton: "הורדת APK לבדיקה (Android)",
       apkUnavailable: "קישור ההורדה עדיין לא זמין.",
       openingApp: "מנסים לפתוח באפליקציה…",
@@ -59,10 +69,16 @@
       notFound: "החנות לא נמצאה",
       notFoundHint: "ייתכן שהקישור שגוי או שהחנות עדיין לא פעילה.",
       storeLabel: "חנות ב-Bizmi",
-      downloadLead: "הורידו את האפליקציה כדי לצפות בחנות.",
-      deviceAndroid: "זיהינו Android",
-      deviceIos: "זיהינו iPhone / iPad",
-      deviceDesktop: "בחרו חנות להורדה:",
+      downloadLead: "בחרו: הורדת האפליקציה או המשך בגרסת אתר.",
+      continueOnWeb: "המשך בגרסת אתר",
+      webModeHint: "גרסת אתר — להזמנה מלאה הורידו את האפליקציה.",
+      browseInBrowser: "צפייה בחנות בדפדפן",
+      browserCatalogTitle: "מוצרים",
+      browserNoProducts: "אין מוצרים להצגה כרגע — הורידו את האפליקציה לחוויה המלאה.",
+      downloadApp: "הורדת האפליקציה",
+      deviceAndroid: "Android — Google Play",
+      deviceIos: "iPhone / iPad — App Store",
+      deviceDesktop: "הורידו את האפליקציה:",
       downloadAndroid: "Google Play",
       downloadIos: "App Store",
       redirecting: "מעבירים לחנות…",
@@ -70,8 +86,8 @@
     en: {
       brandTagline: "Store & appointments in the app",
       loading: "Loading store…",
-      testingBanner: "Bizmi is currently in testing.",
-      testingLead: "To view this store, download the Android test version.",
+      testingBanner: "Bizmi is in testing",
+      testingLead: "Download the app or browse the store in your browser.",
       apkButton: "Download Android Test APK",
       apkUnavailable: "Download link is not available yet.",
       openingApp: "Trying to open the app…",
@@ -81,10 +97,16 @@
       notFound: "Store not found",
       notFoundHint: "This link may be wrong or the store is not public yet.",
       storeLabel: "Store on Bizmi",
-      downloadLead: "Download the app to view this store.",
-      deviceAndroid: "Android detected",
-      deviceIos: "iPhone / iPad detected",
-      deviceDesktop: "Choose a store:",
+      downloadLead: "Choose: download the app or continue in the web version.",
+      continueOnWeb: "Continue on web",
+      webModeHint: "Web version — download the app to order.",
+      browseInBrowser: "Browse store in browser",
+      browserCatalogTitle: "Products",
+      browserNoProducts: "No products to show yet — download the app for the full experience.",
+      downloadApp: "Download app",
+      deviceAndroid: "Android — Google Play",
+      deviceIos: "iPhone / iPad — App Store",
+      deviceDesktop: "Download the app:",
       downloadAndroid: "Google Play",
       downloadIos: "App Store",
       redirecting: "Redirecting to download…",
@@ -92,8 +114,11 @@
   };
 
   function lang() {
-    const l = (navigator.language || "en").toLowerCase();
-    return l.startsWith("he") ? "he" : "en";
+    const q = new URLSearchParams(location.search).get("lang");
+    if (q === "en") return "en";
+    if (q === "he") return "he";
+    if (cfg.defaultLang === "en") return "en";
+    return "he";
   }
 
   function t(key) {
@@ -153,6 +178,120 @@
   function hideLoader() {
     const loader = document.getElementById("loader");
     if (loader) loader.classList.add("done");
+  }
+
+  function escapeHtml(text) {
+    return String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function showBrowserCatalog(products) {
+    const section = document.getElementById("browser-catalog");
+    const card = document.getElementById("app");
+    if (!section) return;
+
+    const items = products || [];
+    if (!items.length) {
+      section.innerHTML =
+        '<p class="catalog-title">' +
+        escapeHtml(t("browserCatalogTitle")) +
+        '</p><p class="catalog-empty">' +
+        escapeHtml(t("browserNoProducts")) +
+        "</p>";
+    } else {
+      section.innerHTML =
+        '<p class="catalog-title">' +
+        escapeHtml(t("browserCatalogTitle")) +
+        "</p>" +
+        items
+          .map(function (p) {
+            var price = Math.round(Number(p.price) || 0);
+            var desc = p.description
+              ? '<p class="catalog-desc">' + escapeHtml(p.description) + "</p>"
+              : "";
+            return (
+              '<article class="catalog-item"><div class="catalog-item-body"><h3>' +
+              escapeHtml(p.name) +
+              "</h3>" +
+              desc +
+              '</div><strong class="catalog-price">₪' +
+              price +
+              "</strong></article>"
+            );
+          })
+          .join("");
+    }
+
+    section.hidden = false;
+    if (card) card.classList.add("card--wide");
+  }
+
+  function enterWebMode(products) {
+    cachedProducts = products || cachedProducts;
+    const gateway = document.getElementById("actions-testing");
+    const storeActions = document.getElementById("actions-store");
+    const banner = document.getElementById("testing-banner");
+    const webBar = document.getElementById("web-download-bar");
+    if (gateway) gateway.hidden = true;
+    if (storeActions) storeActions.hidden = true;
+    if (banner) banner.hidden = true;
+    const msg = document.getElementById("store-message");
+    if (msg) msg.textContent = t("webModeHint");
+    showBrowserCatalog(cachedProducts);
+    if (webBar) webBar.hidden = false;
+  }
+
+  function goToWebVersion() {
+    const url = new URL(location.href);
+    url.searchParams.set("web", "1");
+    history.replaceState(null, "", url.toString());
+    enterWebMode(cachedProducts);
+  }
+
+  function wireContinueWebButton() {
+    function attach(id) {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.hidden = false;
+      btn.textContent = t("continueOnWeb");
+      btn.classList.add("btn-secondary");
+      btn.onclick = function () {
+        goToWebVersion();
+      };
+    }
+    attach("continue-web");
+    attach("browse-browser-store");
+  }
+
+  function wireBrowseButton(products) {
+    cachedProducts = products || cachedProducts;
+    wireContinueWebButton();
+    if (isWebMode || queryFlag("web") === "1" || queryFlag("browse") === "1") {
+      enterWebMode(cachedProducts);
+    }
+  }
+
+  async function fetchProducts(businessId) {
+    var url = cfg.supabaseUrl;
+    var key = cfg.supabaseAnonKey;
+    if (!url || !key || !businessId) return [];
+    var api =
+      url.replace(/\/+$/, "") +
+      "/rest/v1/products?select=name,price,description,image_url&business_id=eq." +
+      encodeURIComponent(businessId) +
+      "&is_active=eq.true&order=created_at.desc";
+    try {
+      var res = await fetch(api, {
+        headers: { apikey: key, Authorization: "Bearer " + key },
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (_) {
+      return [];
+    }
   }
 
   /** Deep link the Flutter app handles (bizmi://shiki). Not the GitHub Pages URL. */
@@ -260,9 +399,13 @@
     }
 
     wireOpenInAppButton("open-app", slug, platform);
+    if (slug) wireContinueWebButton();
 
-    if (slug && (platform === "android" || platform === "ios")) {
-      tryOpenAppOnly(slug, platform);
+    const webApk = document.getElementById("web-apk-link");
+    if (webApk && apkUrl && apkUrl !== "#") {
+      webApk.href = apkUrl;
+      webApk.textContent = t("apkButton");
+      webApk.hidden = false;
     }
   }
 
@@ -327,19 +470,17 @@
     if (platform === "android" && playUrl) {
       hint.textContent = t("deviceAndroid");
       primary.href = playUrl;
-      primary.textContent = t("downloadAndroid");
+      primary.textContent = t("downloadApp");
       primary.hidden = false;
       secondary.hidden = true;
-      status.hidden = false;
-      redirectText.textContent = t("redirecting");
+      status.hidden = true;
     } else if (platform === "ios" && appStoreUrl) {
       hint.textContent = t("deviceIos");
       primary.href = appStoreUrl;
-      primary.textContent = t("downloadIos");
+      primary.textContent = t("downloadApp");
       primary.hidden = false;
       secondary.hidden = true;
-      status.hidden = false;
-      redirectText.textContent = t("redirecting");
+      status.hidden = true;
     } else {
       hint.textContent = t("deviceDesktop");
       primary.hidden = !playUrl;
@@ -354,10 +495,6 @@
       }
       status.hidden = true;
     }
-
-    if (slug && (platform === "android" || platform === "ios")) {
-      tryOpenAppThenStore(slug, platform);
-    }
   }
 
   async function loadStore(slug) {
@@ -371,7 +508,7 @@
 
     const api =
       url.replace(/\/+$/, "") +
-      "/rest/v1/businesses?select=business_name,description,slug&slug=eq." +
+      "/rest/v1/businesses?select=id,business_name,description,slug&slug=eq." +
       encodeURIComponent(slug);
 
     try {
@@ -392,13 +529,12 @@
       document.getElementById("store-name").textContent = store.business_name;
       document.getElementById("store-slug").hidden = false;
       document.getElementById("store-slug").textContent = baseUrl + "/" + slug;
-      if (!testingMode) {
-        document.getElementById("store-message").textContent = store.description
-          ? store.description + " — " + t("downloadLead")
-          : t("downloadLead");
-      }
+      document.getElementById("store-message").textContent = t("downloadLead");
       document.title = store.business_name + " — " + appName;
       hideLoader();
+
+      const products = await fetchProducts(store.id);
+      wireBrowseButton(products);
     } catch (_) {
       setError(t("loadError"));
     }

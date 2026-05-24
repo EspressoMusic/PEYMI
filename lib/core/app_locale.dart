@@ -3,7 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'faq_store.dart';
 
-class AppLocale extends ChangeNotifier {
+import 'safe_change_notifier.dart';
+
+class AppLocale extends ChangeNotifier with SafeChangeNotifier {
   AppLocale._();
 
   static final AppLocale instance = AppLocale._();
@@ -26,9 +28,9 @@ class AppLocale extends ChangeNotifier {
   Future<void> setHebrew(bool value) async {
     if (_hebrew == value) return;
     _hebrew = value;
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, value);
-    notifyListeners();
   }
 
   Future<void> toggleLanguage() => setHebrew(!_hebrew);
@@ -61,14 +63,54 @@ class AppStrings {
   String managerStoreModeLocalOnly(String label) => _he
       ? 'עודכן בתפריט: $label. לסנכרון לקישור האינטרנט: הגדרות → יצירת חנות (פעם אחת).'
       : 'Menu updated: $label. For public link sync: Settings → Create Store (once).';
+  String get managerStoreModeUpdatedTitle => _he ? 'עודכן!' : 'Updated!';
   String get managerAppointmentsNeedLink => _he
-      ? 'כדי להציג יומן תורים, קשרו חנות אונליינית: הגדרות → יצירת חנות.\n(או ודאו שחנות הדמו shiki קיימת בשרת)'
-      : 'To show the appointment calendar, link your online store: Settings → Create Store.\n(Ensure demo store "shiki" exists on the server)';
+      ? 'כדי להציג יומן תורים, קשרו חנות אונליינית: הגדרות → יצירת חנות.\n(או ודאו שחנות הדמו shilo קיימת בשרת)'
+      : 'To show the appointment calendar, link your online store: Settings → Create Store.\n(Ensure demo store "shilo" exists on the server)';
   String demoStoreBanner(String slug) =>
       _he ? 'חנות דמו: $slug' : 'Demo store: $slug';
 
   String get managerLoginTitle => _he ? 'כניסת מנהל' : 'Manager login';
-  String get managerPasswordHint => _he ? 'הזן סיסמת מנהל' : 'Enter manager password';
+  String get managerStoreNameLabel => _he ? 'שם החנות' : 'Store name';
+  String get managerStoreNameRequired => _he ? 'נא להזין שם חנות' : 'Please enter store name';
+  String get managerRememberPassword => _he ? 'זכור סיסמה במכשיר' : 'Remember password on this device';
+  String get managerRememberEmail => _he ? 'זכור אימייל' : 'Remember email';
+  String get managerForgotPassword => _he ? 'שכחתי סיסמה' : 'Forgot password';
+  String get managerChangePinButton => _he ? 'שינוי סיסמת מנהל' : 'Change manager password';
+  String get managerChangePinTitle => _he ? 'שינוי סיסמת מנהל' : 'Change manager password';
+  String get managerChangePinHint => _he
+      ? 'סיסמה לכניסה לפאנל המנהל באפליקציה — לא סיסמת מייל. נדרש חשבון בעל החנות.'
+      : 'Password for the in-app manager panel — not your email password. Store owner account required.';
+  String get managerOwnerAccountEmail => _he ? 'אימייל בעל החנות' : 'Store owner email';
+  String get managerOwnerAccountPassword => _he ? 'סיסמת חשבון בעלים' : 'Owner account password';
+  String get managerPinChangedTitle => _he ? 'סיסמת המנהל עודכנה!' : 'Manager password updated!';
+  String get managerPinChangedSub => _he
+      ? 'אפשר להיכנס לפאנל עם הסיסמה החדשה.'
+      : 'You can sign in to the panel with the new password.';
+  String get managerChangePinNotOwner => _he
+      ? 'החנות לא נמצאה או שאינך הבעלים'
+      : 'Store not found or you are not the owner';
+  String get managerForgotPasswordTitle => _he ? 'שחזור סיסמת חשבון' : 'Account password recovery';
+  String get managerForgotPasswordHint => _he
+      ? 'קישור לאיפוס סיסמת חשבון Supabase (בעלים) — לא סיסמת מנהל באפליקציה.'
+      : 'Resets your Supabase owner account password — not the in-app manager panel PIN.';
+  String get managerResetSend => _he ? 'שליחת קישור' : 'Send reset link';
+  String get managerResetByEmail => _he ? 'שחזור סיסמה במייל' : 'Reset password by email';
+  String get managerResetSending => _he ? 'שולח…' : 'Sending…';
+  String get managerResetEmailSent => _he
+      ? 'נשלח מייל עם קישור לאיפוס. בדקו גם בתיקיית הספאם.'
+      : 'Reset email sent. Check your inbox and spam folder.';
+  String get managerResetInvalidEmail => _he ? 'כתובת המייל שגויה' : 'Invalid email address';
+  String get managerPinChooseLabel => _he ? 'סיסמת מנהל *' : 'Manager password *';
+  String get managerPinConfirmLabel => _he ? 'אימות סיסמת מנהל *' : 'Confirm manager password *';
+  String get managerPinChooseHint => _he
+      ? 'סיסמה זו לכניסה לפאנל המנהל (לפחות 4 תווים).'
+      : 'Used for manager panel login (at least 4 characters).';
+  String get managerPinTooShort => _he ? 'סיסמת מנהל: לפחות 4 תווים' : 'Manager password: at least 4 characters';
+  String get managerPinMismatch => _he ? 'סיסמאות המנהל לא תואמות' : 'Manager passwords do not match';
+  String get managerLoginNotConfigured => _he
+      ? 'כניסת מנהל לא מוגדרת — צרו חנות אונליין או הגדירו MANAGER_PIN'
+      : 'Manager login is not configured — create an online store or set MANAGER_PIN';
   String get managerLoginStoreChoiceTitle =>
       _he ? 'איזו חנות לנהל?' : 'Which store to manage?';
   String get managerLoginStoreChoiceHint => _he
@@ -111,6 +153,8 @@ class AppStrings {
   String get managerNoNotifications => _he ? 'אין התראות חדשות' : 'No notifications';
   String get managerPrepSummary => _he ? 'סיכום להכנה' : 'Preparation summary';
   String get managerPrepEmpty => _he ? 'אין פריטים להכנה כרגע' : 'Nothing to prepare yet';
+  String get managerApprovePrepDone => _he ? 'אישור' : 'Confirm';
+  String get managerAllOrdersApproved => _he ? 'כל ההזמנות אושרו' : 'All orders approved';
   String get managerShareStore => _he ? 'שיתוף החנות' : 'Share your store';
   String get managerShareStoreSub =>
       _he ? 'שתפו את הקישור עם לקוחות' : 'Share the link with customers';
@@ -145,6 +189,9 @@ class AppStrings {
       _he ? 'לא ניתן לפתוח את האפליקציה' : 'Could not open the app';
   String managerShareStoreLinkCopied(String link) =>
       _he ? 'הקישור הועתק' : 'Link copied';
+  String get linkCopiedBadge => _he ? 'הועתק!' : 'COPIED!';
+  String get ownerDashboardNoProducts => _he ? 'אין מוצרים עדיין.' : 'No products yet.';
+  String get ownerDashboardGoCatalog => _he ? 'הוספת מוצרים' : 'Add products';
   String get managerPrepUnits => _he ? 'יחידות בסך הכל' : 'Total units';
   String get managerShowOrders => _he ? 'הצג כל ההזמנות' : 'Show all orders';
   String get managerHideOrders => _he ? 'הסתר הזמנות' : 'Hide orders';
@@ -154,31 +201,44 @@ class AppStrings {
   String get managerHealthTapIssue =>
       _he ? 'לחצו על העיגול האדום לפתרון הבעיה' : 'Tap a red dot to fix the issue';
 
-  String get appCreatorBannerTitle => _he ? 'גישת יוצר האפליקציה' : 'App creator access';
+  String get appCreatorBannerTitle => _he ? 'פאנל מתכנת' : 'Programmer panel';
   String get appCreatorBannerSub => _he
-      ? 'הזינו סיסמת יוצר כדי לנהל את כל בתי העסקים שהצטרפו.'
-      : 'Enter the creator password to manage all joined businesses.';
-  String get appCreatorPasswordLabel => _he ? 'סיסמת יוצר' : 'Creator password';
+      ? 'סיסמה סודית בלבד — שליטה מלאה על כל החנויות. לקוחות לא יכולים לגשת לכאן.'
+      : 'Secret password only — full control over every store. Customers cannot access this.';
+  String get appCreatorPasswordLabel => _he ? 'סיסמת מתכנת' : 'Programmer password';
   String get appCreatorWrongPassword => _he ? 'סיסמה שגויה' : 'Wrong password';
-  String get appCreatorEnter => _he ? 'כניסה לדשבורד' : 'Open dashboard';
-  String get appCreatorDashboardTitle => _he ? 'דשבורד יוצר האפליקציה' : 'App creator dashboard';
+  String get appCreatorEnter => _he ? 'כניסה לפאנל מתכנת' : 'Open programmer panel';
+  String get appCreatorDashboardTitle => _he ? 'פאנל מתכנת' : 'Programmer panel';
   String get appCreatorDashboardSub => _he
-      ? 'כל בתי העסקים — הפעלה, השהיה וניסיון'
-      : 'All businesses — activate, suspend, or trial';
+      ? 'כל החנויות הפתוחות והסגורות — ניהול, נעילה ושליטה מלאה'
+      : 'All open and closed stores — manage, lock, and full control';
   String get appCreatorSearch => _he ? 'חיפוש עסק / slug / אימייל' : 'Search business / slug / email';
   String get appCreatorNoBusinesses => _he ? 'אין עסקים רשומים' : 'No businesses yet';
   String get appCreatorStatus => _he ? 'סטטוס' : 'Status';
   String get appCreatorActive => _he ? 'פעיל' : 'Active';
   String get appCreatorInactive => _he ? 'מושהה' : 'Inactive';
-  String appCreatorCounts(int products, int orders, int appointments) => _he
-      ? 'מוצרים: $products · הזמנות: $orders · תורים: $appointments'
-      : 'Products: $products · Orders: $orders · Appointments: $appointments';
+  String appCreatorCounts(int products, int orders, int appointments, int customers) => _he
+      ? 'לקוחות: $customers · מוצרים: $products · הזמנות: $orders · תורים: $appointments'
+      : 'Customers: $customers · Products: $products · Orders: $orders · Appointments: $appointments';
+  String get appCreatorLockStore => _he ? 'נעילת חנות' : 'Lock store';
+  String get appCreatorStoreDetails => _he ? 'פרטי חנות' : 'Store details';
   String get appCreatorActivate => _he ? 'הפעלה' : 'Activate';
   String get appCreatorSuspend => _he ? 'השהיה' : 'Suspend';
   String get appCreatorTrial => _he ? 'ניסיון' : 'Trial';
   String get appCreatorFilterAll => _he ? 'הכל' : 'All';
+  String get appCreatorFilterOpen => _he ? 'פתוחות' : 'Open';
   String get appCreatorFilterPayment => _he ? 'בעיית תשלום' : 'Payment issue';
   String get appCreatorFilterDisabled => _he ? 'מושבתות' : 'Disabled';
+  String get appCreatorFullControl => _he ? 'שליטה מלאה — ניהול חנות' : 'Full control — manage store';
+  String appCreatorFullControlConfirm(String name) => _he
+      ? 'לפתוח את "$name" בפאנל המנהל? תוכל לערוך מוצרים, הגדרות ותשלומים.'
+      : 'Open "$name" in the manager panel? You can edit products, settings, and payments.';
+  String get appCreatorSetProductsMode => _he ? 'מצב מוצרים' : 'Products mode';
+  String get appCreatorSetAppointmentsMode => _he ? 'מצב תורים' : 'Appointments mode';
+  String get appCreatorHardLock => _he ? 'חסימה מוחלטת' : 'Hard block';
+  String appCreatorHardLockConfirm(String name) => _he
+      ? 'לחסום לחלוטין את "$name"? לקוחות לא יוכלו להזמין או לקבוע תור.'
+      : 'Hard-block "$name"? Customers will not be able to order or book.';
   String get appCreatorDisableStore => _he ? 'השבת חנות (אי תשלום)' : 'Disable store (non-payment)';
   String get appCreatorReenableStore => _he ? 'החזרת חנות לפעילות' : 'Re-enable store';
   String get appCreatorMarkPastDue => _he ? 'סימון חוב תשלום' : 'Mark payment overdue';
@@ -226,24 +286,26 @@ class AppStrings {
   String get policyConsentBodyCustomer => _he
       ? '''• האפליקציה אוספת שם, טלפון ופרטי הזמנה לצורך מתן השירות.
 • הנתונים מועברים לבעל העסק שאליו הזמנתם.
+• Peymiz הוא פלטפורמה בלבד — לא המוכר. עסקאות ומחלוקות מול בעל העסק.
+• אין אחריות של מפעיל האפליקציה להונאות או התנהגות בלתי חוקית של מוכרים.
 • לא נמכור את הנתונים לצד שלישי ללא הסכמתכם.
-• ניתן לפנות לעסק או למפעיל האפליקציה לעדכון או מחיקת מידע.
 • שימוש באפליקציה מהווה הסכמה לתנאים אלה.'''
       : '''• The app collects name, phone, and order details to provide the service.
 • Data is shared with the business you order from.
+• Peymiz is a platform only — not the seller. Transactions and disputes are with the business.
+• The app operator is not liable for seller fraud or illegal conduct.
 • We do not sell your data to third parties without consent.
-• You may contact the business or app operator to update or delete your data.
 • Using the app means you agree to these terms.''';
   String get policyConsentBodyOwner => _he
-      ? '''• ניהול העסק כולל עיבוד נתוני לקוחות, הזמנות ותשלומים.
-• אתם אחראים לשמירה על פרטיות הלקוחות ולעמידה בדין.
-• מפעיל האפליקציה רשאי להשהות חנות באי-תשלום מנוי.
-• ניתן לפנות למפעיל האפליקציה בכל שאלה על המדיניות.
+      ? '''• Peymiz הוא פלטפורמה טכנולוגית — אינכם המוכרים בשם Peymiz.
+• אין אחריות של Peymiz להונאות, תרמיות או מחלוקות בין לקוחות לביניכם.
+• אתם אחראים לעיבוד נתוני לקוחות, עמידה בדין, ולשיפוי Peymiz מפני תביעות הנובעות מפעילותכם.
+• מפעיל האפליקציה רשאי להשעות חנות בהפרת תנאים או חשד להונאה.
 • המשך שימוש בפאנל המנהל מהווה הסכמה לתנאים אלה.'''
-      : '''• Managing your business involves processing customer, order, and payment data.
-• You are responsible for customer privacy and legal compliance.
-• The app operator may suspend a store for unpaid subscription.
-• Contact the app operator with any policy questions.
+      : '''• Peymiz is a technology platform — you are not selling on Peymiz's behalf.
+• Peymiz is not liable for fraud, scams, or disputes between you and your customers.
+• You are responsible for customer data, legal compliance, and indemnifying Peymiz for claims from your conduct.
+• The operator may suspend stores for Terms violations or suspected fraud.
 • Continuing to use the manager panel means you accept these terms.''';
 
   String get managerOrderLines => _he ? 'פירוט הזמנה' : 'Order breakdown';
@@ -254,9 +316,18 @@ class AppStrings {
   String get managerActionsSub => _he ? 'ניהול החנות והלקוחות' : 'Manage store & customers';
   String get managerActionCustomers => _he ? 'מענה ללקוחות' : 'Customer messages';
   String get managerActionCustomersSub =>
-      _he ? 'עדכון ללקוחות, חוות דעת והמלצות' : 'Customer update, reviews & ratings';
+      _he ? 'פניות, עדכונים, חוות דעת והמלצות' : 'Inquiries, updates, reviews & ratings';
   String get managerActionUpdate => _he ? 'עדכון ללקוחות' : 'Customer update';
   String get managerActionUpdateSub => _he ? 'הודעה שמופיעה באפליקציה' : 'Message shown in the app';
+  String get managerInquiryEmailTitle => _he ? 'מייל לפניות מלקוחות' : 'Customer inquiry email';
+  String get managerInquiryEmailHint => _he
+      ? 'לקוחות יוכלו לפנות אליך במייל מהאפליקציה. אפשר להוסיף גם אם לא מילאת בפתיחת החנות.'
+      : 'Customers can email you from the app. You can add this even if you skipped it when opening the store.';
+  String get managerInquiryEmailSaved => _he ? 'מייל לפניות נשמר' : 'Inquiry email saved';
+  String get managerInquiryEmailInvalid => _he ? 'נא להזין כתובת מייל תקינה' : 'Enter a valid email address';
+  String get contactEmailUnavailable => _he
+      ? 'בעל החנות עדיין לא הגדיר מייל לפניות.'
+      : 'The store owner has not set an inquiry email yet.';
   String get managerActionNewDeal => _he ? 'דיל / מבצע חדש' : 'New deal';
   String get managerActionNewDealSub => _he ? 'פרסום מבצע בלשונית מבצעים' : 'Publish in Deals tab';
   String get managerActionStoreMode => _he ? 'מצב חנות' : 'Store mode';
@@ -292,7 +363,7 @@ class AppStrings {
   String get managerActionStatsSub => _he ? 'הכנסות, הזמנות ושביעות רצון' : 'Revenue, orders & satisfaction';
   String get managerActionFaq => _he ? 'שאלות ותשובות' : 'FAQ';
   String get managerActionFaqSub =>
-      _he ? 'עריכת שאלות נפוצות ללקוחות' : 'Edit customer help Q&A';
+      _he ? 'שאלות נפוצות ותקנון החנות' : 'FAQ & store terms';
   String get managerActionStoreTerms => _he ? 'תקנון החנות' : 'Store terms';
   String get managerActionStoreTermsSub =>
       _he ? 'תנאים והוראות ללקוחות' : 'Rules & policies for customers';
@@ -340,6 +411,8 @@ class AppStrings {
   String get managerFaqDelete => _he ? 'מחיקה' : 'Delete';
   String get managerFaqDeleteConfirm =>
       _he ? 'למחוק את השאלה הזו?' : 'Delete this question?';
+  String get managerFaqQuestion => _he ? 'שאלה' : 'Question';
+  String get managerFaqAnswer => _he ? 'תשובה' : 'Answer';
   String get managerFaqQuestionHe => _he ? 'שאלה (עברית)' : 'Question (Hebrew)';
   String get managerFaqAnswerHe => _he ? 'תשובה (עברית)' : 'Answer (Hebrew)';
   String get managerFaqQuestionEn => _he ? 'שאלה (אנגלית)' : 'Question (English)';
@@ -347,7 +420,7 @@ class AppStrings {
   String get managerFaqSaved => _he ? 'השאלות נשמרו' : 'FAQ saved';
   String get managerFaqEmpty => _he ? 'אין שאלות עדיין' : 'No questions yet';
   String get managerFaqRequired =>
-      _he ? 'מלאו שאלה ותשובה בשתי השפות' : 'Fill question and answer in both languages';
+      _he ? 'מלאו שאלה ותשובה' : 'Fill in the question and answer';
   String get managerStatsWeekly => _he ? 'שבועי' : 'Weekly';
   String get managerStatsMonthly => _he ? 'חודשי' : 'Monthly';
   String get managerStatsYearly => _he ? 'שנתי' : 'Yearly';
@@ -357,34 +430,92 @@ class AppStrings {
   String get managerStatsStable => _he ? 'יציב' : 'Stable';
   String get managerBack => _he ? 'חזרה' : 'Back';
   String get managerSettingsSub => _he ? 'העדפות מנהל' : 'Manager preferences';
+  String get managerActionLegalProtection => _he ? 'הגנה משפטית' : 'Legal protection';
+  String get managerActionLegalProtectionSub =>
+      _he ? 'אחריות, הונאות מוכרים ותנאי פלטפורמה' : 'Liability, seller fraud & platform terms';
+  String get managerLegalFullTerms => _he ? 'תנאי שימוש מלאים' : 'Full Terms of Use';
   String get managerActionOrderLimits => _he ? 'הגבלות הזמנה' : 'Order limits';
   String get managerActionOrderLimitsSub =>
-      _he ? 'שעת סגירה ומכסת הזמנות' : 'Cutoff time & order cap';
+      _he ? 'ימים, שעות ומכסת מוצרים' : 'Days, hours & product cap';
+  String get managerActionAppointmentSchedule => _he ? 'שעות פגישות' : 'Appointment hours';
+  String get managerActionAppointmentScheduleSub =>
+      _he ? 'ימים, שעות פעילות ומשך פגישה' : 'Days, active hours & meeting length';
+  String get managerAppointmentHoursSection => _he ? 'שעות פעילות' : 'Active hours';
+  String get managerAppointmentHoursHint =>
+      _he ? 'ממתי עד מתי ניתן לקבוע פגישות בכל יום' : 'When customers can book appointments each day';
+  String get managerAppointmentDurationSection => _he ? 'משך כל פגישה' : 'Appointment length';
+  String get managerAppointmentDurationHint =>
+      _he ? 'כמה דקות כל תור / פגישה' : 'How many minutes each appointment lasts';
+  String get managerAppointmentDurationLabel => _he ? 'דקות לפגישה' : 'Minutes per appointment';
+  String get managerAppointmentDurationInvalid =>
+      _he ? 'נא להזין בין 10 ל-240 דקות' : 'Enter between 10 and 240 minutes';
+  String get managerAppointmentScheduleSaved => _he ? 'שעות הפגישות נשמרו' : 'Appointment hours saved';
+  String get managerAddService => _he ? 'הוספת שירות' : 'Add service';
+  String get managerCatalogServices => _he ? 'שירותים' : 'Services';
+  String get managerDealServices => _he ? 'בחירת שירות' : 'Choose service';
+  String get managerDealPickServicesHint =>
+      _he ? 'בחרו שירות להנחה' : 'Pick a service for the discount';
+  String get managerDealServiceDiscount => _he ? 'מחיר מוזל לשירות' : 'Discounted service price';
+  String get managerActionNewDealSubAppointment =>
+      _he ? 'הנחה על שירות בלשונית מבצעים' : 'Service discount in Deals tab';
+  String get managerActionStoreSubAppointment =>
+      _he ? 'שירותים, מבצעים ומצב חנות' : 'Services, offers & store mode';
   String get managerOrderLimitsTitle => _he ? 'הגבלות הזמנות' : 'Order restrictions';
-  String get managerOrderCutoffSection => _he ? 'מועד אחרון להזמנה היום' : 'Order cutoff today';
-  String get managerOrderCutoffHint =>
-      _he ? 'לאחר השעה הזו לקוחות לא יוכלו לאשר הזמנה חדשה' : 'After this time customers cannot confirm new orders';
-  String get managerOrderMaxSection => _he ? 'מכסת הזמנות' : 'Order quantity cap';
+  String get managerOrderHoursSection => _he ? 'מתי אפשר להזמין' : 'When orders are accepted';
+  String get managerOrderHoursHint =>
+      _he ? 'לכל יום — שעות משלו (אפשר לקבל הזמנות בימים ובשעות שונים)' : 'Set hours per weekday (different days, different times)';
+  String get managerOrderHoursFrom => _he ? 'משעה' : 'From';
+  String get managerOrderHoursTo => _he ? 'עד שעה' : 'Until';
+  String get managerOrderHoursDays => _he ? 'ימים ושעות' : 'Days & hours';
+  String get managerOrderHoursNone => _he ? 'אין ימים פתוחים להזמנה' : 'No days open for orders';
+  String orderHoursDaySchedule(String day, String from, String to) =>
+      _he ? '$day $from–$to' : '$day $from–$to';
+  String orderHoursSchedule(String days, String from, String to) =>
+      _he ? '$days · $from–$to' : '$days · $from–$to';
+  String orderBlockedOutsideHours(String schedule) => _he
+      ? 'לא ניתן להזמין עכשיו. שעות ההזמנה: $schedule'
+      : 'Orders are not available now. Hours: $schedule';
+  String get managerOrderCutoffSection => managerOrderHoursSection;
+  String get managerOrderCutoffHint => managerOrderHoursHint;
+  String get managerOrderMaxSection => _he ? 'מכסת מוצרים' : 'Product quantity cap';
   String get managerOrderMaxHint => _he
-      ? 'ספירה לפי הזמנות שאושרו באפליקציה (לא כולל ביטולים)'
-      : 'Counts confirmed in-app orders (excludes cancellations)';
-  String get managerOrderMaxCount => _he ? 'מספר הזמנות מקסימלי' : 'Maximum orders';
+      ? 'סה״כ מוצרים ללקוח לתקופה — בהזמנה אחת או במספר הזמנות יחד (כולל מה שכבר בעגלה)'
+      : 'Total product units per customer for the period — one order or many combined (includes cart)';
+  String get managerOrderMaxCount => _he ? 'מספר מוצרים מקסימלי' : 'Maximum products';
+  String get managerOrderMaxSaved => _he ? 'מכסת המוצרים עודכנה' : 'Product cap updated';
+  String get managerOrderMaxInvalid =>
+      _he ? 'נא להזין מספר מוצרים תקין (1–9999)' : 'Enter a valid product count (1–9999)';
   String get orderLimitPeriodDay => _he ? 'היום' : 'today';
   String get orderLimitPeriodWeek => _he ? 'השבוע' : 'this week';
-  String managerOrderCurrentCount(int n) => _he ? 'כרגע: $n הזמנות בתקופה' : 'Currently: $n orders in period';
-  String orderBlockedCutoff(String time) => _he
-      ? 'ההזמנות נסגרו להיום (מועד אחרון: $time)'
-      : 'Orders are closed for today (cutoff: $time)';
-  String orderBlockedMaxOrders(int max, String period, int current) => _he
-      ? 'הגענו למכסה של $max הזמנות ל$period ($current/$max)'
-      : 'Order limit reached: $max orders for $period ($current/$max)';
+  String managerOrderCurrentCount(int n) => _he ? 'כבר הוזמנו: $n מוצרים בתקופה' : 'Already ordered: $n products in period';
+  String orderBlockedCutoff(String time) => orderBlockedOutsideHours(time);
+  String orderBlockedMaxProducts(int max, String period, int alreadyOrdered, int inCart) {
+    final total = alreadyOrdered + inCart;
+    return _he
+        ? 'מכסה: עד $max מוצרים ל$period (כבר $alreadyOrdered + עגלה $inCart = $total/$max)'
+        : 'Limit: up to $max products for $period ($alreadyOrdered ordered + $inCart in cart = $total/$max)';
+  }
+  String get orderBlockedPreviewStore => _he
+      ? 'לא ניתן לשלוח הזמנה — פתחו חנות משלכם (לא חנות הדגמה).'
+      : 'Cannot place orders — open your own store (not the demo store).';
   String get managerLogout => _he ? 'יציאה מהפאנל' : 'Leave manager panel';
   String get managerActiveDeals => _he ? 'דילים פעילים' : 'Active deals';
   String get managerCustomDeals => _he ? 'דילים שהוספת' : 'Deals you added';
   String get managerNoInquiries => _he ? 'אין פניות עדיין' : 'No inquiries yet';
   String get managerNoReviews => _he ? 'אין חוות דעת עדיין' : 'No reviews yet';
   String get managerReviewsSectionHint => _he ? 'חוות דעת והמלצות' : 'Reviews & ratings';
-  String get managerInquiriesSection => _he ? 'פניות לקוחות' : 'Customer inquiries';
+  String get managerInquiriesSection => _he ? 'פניות' : 'Inquiries';
+  String get managerInquiriesHint =>
+      _he ? 'פניות מלקוחות מהאפליקציה' : 'Customer inquiries from the app';
+  String get managerInquiryReplyHint => _he ? 'כתבו תשובה ללקוח…' : 'Write a reply to the customer…';
+  String get managerInquirySendReply => _he ? 'שליחת תשובה' : 'Send reply';
+  String get managerInquiryReplySent => _he ? 'התשובה נשלחה ללקוח' : 'Reply sent to customer';
+  String get managerInquiryYourReply => _he ? 'התשובה שלכם' : 'Your reply';
+  String get customerInquiryHistoryTitle => _he ? 'הפניות שלי' : 'My inquiries';
+  String get customerInquiryYourMessage => _he ? 'הפנייה שלכם' : 'Your message';
+  String get customerInquiryStoreReply => _he ? 'תשובת החנות' : 'Store reply';
+  String get customerInquiryAwaitingReply =>
+      _he ? 'ממתין לתשובה מהחנות' : 'Waiting for a reply from the store';
   String get managerReviewsSection => _he ? 'חוות דעת' : 'Reviews';
   String get managerUpdateMessage => _he ? 'העדכון ללקוחות' : 'Message for customers';
   String get managerUpdateImage => _he ? 'תמונה לעדכון (אופציונלי)' : 'Update image (optional)';
@@ -395,6 +526,10 @@ class AppStrings {
   String get managerUpdateTranslating => _he ? 'מתרגם ושומר…' : 'Translating & saving…';
   String get managerPublishUpdate => _he ? 'פרסום עדכון' : 'Publish update';
   String get managerUpdatePublished => _he ? 'העדכון פורסם ללקוחות' : 'Update published for customers';
+  String get managerMessageSentTitle => _he ? 'ההודעה נשלחה בהצלחה!' : 'Message sent successfully!';
+  String get managerMessageSentSub => _he
+      ? 'הלקוחות יראו את העדכון כבאנר קופץ באפליקציה.'
+      : 'Customers will see your update as a popup banner in the app.';
   String get managerClearUpdate => _he ? 'ניקוי עדכון' : 'Clear update';
   String get managerDealTitle => _he ? 'כותרת הדיל (אופציונלי)' : 'Deal title (optional)';
   String get managerDealDesc => _he ? 'תיאור (אופציונלי)' : 'Description (optional)';
@@ -411,7 +546,16 @@ class AppStrings {
   String get managerDealValidity => _he ? 'תוקף המבצע' : 'Deal validity';
   String managerDealValidityDays(int days) => _he ? '$days ימים' : '$days days';
   String get managerPublishDeal => _he ? 'פרסום דיל' : 'Publish deal';
+  String get managerSaveDealChanges => _he ? 'שמירת שינויים' : 'Save changes';
   String get managerDealPublished => _he ? 'הדיל פורסם במבצעים' : 'Deal published in Deals';
+  String get managerDealUpdated => _he ? 'הדיל עודכן' : 'Deal updated';
+  String get managerDealDeleted => _he ? 'הדיל הוסר' : 'Deal removed';
+  String get managerEditDeal => _he ? 'עריכה' : 'Edit';
+  String get managerDeleteDeal => _he ? 'הסרה' : 'Remove';
+  String get managerNewDeal => _he ? 'דיל חדש' : 'New deal';
+  String get managerEditingDeal => _he ? 'עריכת דיל' : 'Editing deal';
+  String get managerConfirmDeleteDeal => _he ? 'להסיר את הדיל?' : 'Remove this deal?';
+  String get managerNoActiveDeals => _he ? 'אין דילים פעילים' : 'No active deals';
   String get managerStoreStatus => _he ? 'סטטוס החנות' : 'Store status';
   String get managerStoreAnnouncement => _he ? 'עדכון פעיל ללקוחות' : 'Active customer update';
   String get managerNoAnnouncement => _he ? 'אין עדכון פעיל' : 'No active update';
@@ -424,8 +568,11 @@ class AppStrings {
 
   String get settingsHelp => _he ? 'הגדרות ועזרה' : 'Settings & help';
   String get contact => _he ? 'צור קשר' : 'Contact us';
-  String get contactSub => _he ? 'מייל או צ׳אט קהילה' : 'Email or community chat';
-  String get contactEmailTab => _he ? 'מייל' : 'Email';
+  String get contactSub => _he ? 'צ׳אט קהילה או פנייה לבעל העסק' : 'Community chat or contact the owner';
+  String get contactInquiryTab => _he ? 'פנייה' : 'Inquiry';
+  String get inquiryReasonLabel => _he ? 'סיבת הפנייה' : 'Reason for contact';
+  String get inquirySent => _he ? 'הפנייה נשלחה לבעל החנות' : 'Your inquiry was sent to the store owner';
+  String get sendInquiry => _he ? 'שליחת פנייה' : 'Send inquiry';
   String get botWelcome => _he
       ? 'שלום! אני כאן לעזור. שאלו על שעות, משלוח, תשלום או הזמנות.'
       : 'Hi! I can help with hours, delivery, payment, or orders.';
@@ -455,6 +602,10 @@ class AppStrings {
   String get recommendSub => _he ? 'שתפו חברים' : 'Share with friends';
   String get accessibility => _he ? 'נגישות' : 'Accessibility';
   String get accessibilitySub => _he ? 'הגדלת כתב והתאמות' : 'Text size & adjustments';
+  String get accessibilityAndLegal => _he ? 'נגישות ומשפטי' : 'Accessibility & legal';
+  String get accessibilityAndLegalSub =>
+      _he ? 'הגדלת כתב, מדיניות פרטיות ותנאים' : 'Text size, privacy policy & terms';
+  String get chooseAccessibilityAndLegal => _he ? 'נגישות ומשפטי' : 'Accessibility & legal';
   String get textSize => _he ? 'גודל טקסט' : 'Text size';
   String get decreaseText => _he ? 'הקטן' : 'Smaller';
   String get increaseText => _he ? 'הגדל' : 'Larger';
@@ -468,12 +619,37 @@ class AppStrings {
   String get employeeEntry => _he ? 'כניסת עובד' : 'Employee login';
   String get employeeEntrySub => _he ? 'הזמנות וסיכום להכנה' : 'Orders & prep list';
   String get comingSoon => _he ? 'בקרוב' : 'Coming soon';
-  String get saasCreateStore => _he ? 'יצירת חנות' : 'Create Store';
+  String get saasCreateStore => _he ? 'פתיחת חנות' : 'Open store';
   String get saasCreateStoreSub => _he ? 'חנות אונליין עם קישור ציבורי' : 'Online store with public link';
+  String get openStoreTitle => _he ? 'פתיחת חנות' : 'Open a store';
+  String get openStoreSubtitle => _he
+      ? 'מלא/י שם חנות וסיסמת מנהל — השאר אופציונלי.'
+      : 'Enter store name and manager password — the rest is optional.';
+  String get storeNameLabel => _he ? 'שם החנות *' : 'Store name *';
+  String get storeAdditionalDetails => _he ? 'פרטים נוספים' : 'Additional details';
+  String get openStoreSubmit => _he ? 'פתיחת חנות' : 'Open store';
+  String get openStoreSubmitting => _he ? 'פותח חנות…' : 'Opening store…';
+  String get storeDescriptionLabel => _he ? 'תיאור' : 'Description';
+  String get storePhoneLabel => _he ? 'טלפון' : 'Phone';
+  String get storeAddressLabel => _he ? 'כתובת' : 'Address';
+  String get storeBusinessTypeLabel => _he ? 'סוג עסק' : 'Business type';
+  String get storeContactEmailLabel => _he ? 'מייל לפניות' : 'Inquiry email';
+  String get storeContactEmailHint => _he
+      ? 'אופציונלי בפתיחה — אפשר להוסיף/לעדכן גם בפאנל מנהל → מענה ללקוחות.'
+      : 'Optional at setup — you can add or update it later under Manager → Customer messages.';
+  String get storeCreatedReady => _he ? 'החנות שלך מוכנה!' : 'Your store is ready.';
+  String get storeYourPublicLink => _he ? 'קישור החנות שלך:' : 'Your store link:';
+  String get storeNameRequired => _he ? 'נדרש שם חנות.' : 'Store name is required.';
   String get legalPrivacyPolicy => _he ? 'מדיניות פרטיות' : 'Privacy Policy';
   String get legalTermsOfUse => _he ? 'תנאי שימוש' : 'Terms of Use';
+  String supabaseDebugStatus(bool configured) =>
+      _he ? 'Supabase מוגדר: $configured' : 'Supabase configured: $configured';
+
+  String get legalDocuments => _he ? 'משפטי' : 'Legal';
+  String get legalDocumentsSub => _he ? 'מדיניות פרטיות ותנאי שימוש' : 'Privacy Policy & Terms of Use';
+  String get chooseLegalDocument => _he ? 'מסמכים משפטיים' : 'Legal documents';
   String get legalPrivacySub => _he ? 'טיוטת פיילוט — Peymiz' : 'Peymiz pilot draft';
-  String get legalTermsSub => _he ? 'טיוטת פיילוט — Peymiz' : 'Peymiz pilot draft';
+  String get legalTermsSub => _he ? 'טיוטת פיילוט v2 — Peymiz' : 'Peymiz pilot draft v2';
   String get legalAcceptPrefix => _he ? 'אני מסכים/ה ל' : 'I agree to the ';
   String get legalAcceptMiddle => _he ? ' ול' : ' and ';
   String get legalAcceptSuffix => _he ? '.' : '.';
@@ -482,6 +658,20 @@ class AppStrings {
   String get legalMustAccept => _he
       ? 'יש לאשר את תנאי השימוש ומדיניות הפרטיות לפני יצירת חנות.'
       : 'You must accept the Terms of Use and Privacy Policy before creating a store.';
+
+  String get authEmailNotConfirmed => _he
+      ? 'יש לאשר את האימייל לפני כניסה. בדוק/י את תיבת הדואר (גם ספאם) ולחץ/י על הקישור מ-Supabase.'
+      : 'Please confirm your email before signing in. Check your inbox (and spam) for the Supabase link.';
+
+  String get authEmailConfirmSent => _he
+      ? 'נשלח אימייל אישור. אחרי לחיצה על הקישור — חזור/י והתחבר/י.'
+      : 'Confirmation email sent. After you click the link, return here and sign in.';
+
+  String get authResendConfirmation => _he ? 'שליחת אימייל אישור שוב' : 'Resend confirmation email';
+
+  String get authSignUpPendingConfirm => _he
+      ? 'החשבון נוצר. אשר/י את האימייל ואז התחבר/י.'
+      : 'Account created. Confirm your email, then sign in.';
   String get language => _he ? 'שפה' : 'Language';
   String get languageSub => _he ? 'עברית או אנגלית' : 'Hebrew or English';
   String get languageCurrentHe => _he ? 'עברית' : 'Hebrew';
@@ -491,10 +681,12 @@ class AppStrings {
   String get displayMode => _he ? 'מצב תצוגה' : 'Display mode';
   String get displayModeSub => _he ? 'רגוע, בהיר או כהה' : 'Calm, light, or dark';
   String get chooseDisplayMode => _he ? 'בחר מצב תצוגה' : 'Choose display mode';
+  String get languageAndDisplay => _he ? 'שפה ותצוגה' : 'Language & display';
+  String get chooseLanguageAndDisplay => _he ? 'שפה ומצב תצוגה' : 'Language & display mode';
 
   String get appearance => _he ? 'מראה' : 'Appearance';
   String get themeCalm => _he ? 'מצב רגוע' : 'Calm mode';
-  String get themeCalmSub => _he ? 'חום שמנת — כמו עכשיו' : 'Cream & brown — current look';
+  String get themeCalmSub => _he ? 'שמנת רכה — כמו הריבועים' : 'Soft cream — like the tiles';
   String get themeLight => _he ? 'מצב בהיר' : 'Light mode';
   String get themeLightSub => _he ? 'שחור ולבן בלבד — ניגודיות גבוהה' : 'Black & white only — high contrast';
   String get themeDark => _he ? 'מצב כהה' : 'Dark mode';
@@ -564,6 +756,12 @@ We aim to follow WCAG 2.1 Level AA and Section 508 principles, as applicable to 
   String get contactTypeMessage => _he ? 'הודעה' : 'Message';
   String get contactCommunityEmpty => _he ? 'אין הודעות עדיין — שלחו את הראשונה' : 'No messages yet — send the first one';
   String get managerPrepDetails => _he ? 'פירוט הזמנות' : 'Order breakdown';
+  String get managerApproveOrder => _he ? 'אישור הזמנה' : 'Approve order';
+  String get managerOrderApproved => _he ? 'ההזמנה אושרה' : 'Order approved';
+  String get managerClearApprovedOrders => _he ? 'נקה הזמנות שאושרו' : 'Clear approved orders';
+  String get managerApprovedOrdersCleared => _he ? 'ההזמנות שאושרו נוקו' : 'Approved orders cleared';
+  String get managerNoPendingOrders => _he ? 'אין הזמנות ממתינות' : 'No pending orders';
+  String get managerPendingOrdersBadge => _he ? 'ממתינות' : 'Pending';
   String get managerNotifyCustomers => _he ? 'התראה ללקוחות באפליקציה' : 'Notify customers in app';
   String get managerNotifySent => _he ? 'התראה נשלחה ללקוחות' : 'Customers were notified';
   String get managerReplyToReview => _he ? 'מענה ללקוח' : 'Reply to customer';
@@ -596,6 +794,14 @@ We aim to follow WCAG 2.1 Level AA and Section 508 principles, as applicable to 
   String get managerPickImage => _he ? 'תמונה' : 'Image';
   String get managerCatalogProducts => _he ? 'מוצרים בחנות' : 'Store products';
   String get managerCatalogDrinks => _he ? 'שתייה בחנות' : 'Store drinks';
+  String get catalogEmptyManagerTitle => _he ? 'הגדירו את המוצרים' : 'Set up your products';
+  String get catalogEmptyManagerSub =>
+      _he ? 'הוסיפו מוצרים ושתייה.\nלחצו «הוספת מוצר» או «הוספת שתייה» למעלה.' : 'Add products and drinks.\nTap Add product or Add drink above.';
+  String get catalogSetupGotIt => _he ? 'הבנתי' : 'Got it';
+  String get catalogEmptyCustomer =>
+      _he ? 'החנות עדיין לא הגדירה מוצרים. חזרו בקרוב!' : 'This store has not listed products yet. Check back soon!';
+  String get catalogEmptyProductsSection => _he ? 'אין מוצרים עדיין' : 'No products yet';
+  String get catalogEmptyDrinksSection => _he ? 'אין שתייה עדיין' : 'No drinks yet';
   String get newDealAlertTitle => _he ? 'מבצע חדש!' : 'New deal!';
 
   String get faqTitle => _he ? 'שאלות נפוצות' : 'FAQ';
@@ -606,6 +812,10 @@ We aim to follow WCAG 2.1 Level AA and Section 508 principles, as applicable to 
   String get yourMessage => _he ? 'הודעה' : 'Message';
   String get sendMessage => _he ? 'שליחה' : 'Send';
   String get messageSent => _he ? 'ההודעה נשלחה! ניצור קשר בקרוב.' : 'Message sent! We will contact you soon.';
+  String get contactEmailDelivered => _he ? 'המייל נשלח לבעל החנות.' : 'Email sent to the store owner.';
+  String get contactEmailSendFailed => _he
+      ? 'ההודעה נשמרה, אך המייל לא נשלח. נסו שוב או פנו ישירות לחנות.'
+      : 'Message saved, but email could not be delivered. Try again or contact the store directly.';
   String get fillAllFields => _he ? 'נא למלא את כל השדות' : 'Please fill in all fields';
   String phoneLabel(String phone) => _he ? 'טלפון: $phone' : 'Phone: $phone';
   String get whatsapp => _he ? 'וואטסאפ' : 'WhatsApp';
@@ -623,8 +833,30 @@ We aim to follow WCAG 2.1 Level AA and Section 508 principles, as applicable to 
   String get yourCart => _he ? 'העגלה שלך' : 'Your cart';
   String get cartEmpty => _he ? 'העגלה ריקה' : 'Cart is empty';
   String get cartEmptySub => _he ? 'הוסף מוצרים מהקטלוג כדי לבצע הזמנה' : 'Add items from the menu to order';
-  String get confirmOrder => _he ? 'תשלום ואישור הזמנה' : 'Pay & confirm order';
-  String get orderConfirmed => _he ? 'ההזמנה שולמה ואושרה!' : 'Order paid and confirmed!';
+  String get confirmOrder => _he ? 'שליחת הזמנה' : 'Send order';
+  String get orderContactTitle => _he ? 'פרטי הזמנה' : 'Order details';
+  String get orderContactHint => _he
+      ? 'נדרש שם וטלפון ליצירת קשר. אפשר גם להיכנס מראש בהגדרות ולא למלא שוב.'
+      : 'Name and phone are required. You can sign in from Settings to skip this next time.';
+  String get customerProfileTitle => _he ? 'כניסת לקוח' : 'Customer sign-in';
+  String get customerProfileSub => _he
+      ? 'נשמר במכשיר — לא צריך למלא שוב.'
+      : 'Saved on this device — skip next time.';
+  String get customerDisplayName => _he ? 'שם מלא' : 'Full name';
+  String get yourPhone => _he ? 'מספר טלפון' : 'Phone number';
+  String get rememberMeForOrders => _he ? 'זכור אותי להזמנות הבאות' : 'Remember me for future orders';
+  String get customerSignIn => _he ? 'כניסה' : 'Sign in';
+  String get customerSignOut => _he ? 'יציאה' : 'Sign out';
+  String get customerProfileSaved => _he ? 'הפרטים נשמרו' : 'Details saved';
+  String get customerSignedOut => _he ? 'יצאת מהחשבון המקומי' : 'Signed out locally';
+  String get invalidPhone => _he ? 'מספר טלפון לא תקין' : 'Invalid phone number';
+  String customerSignedInAs(String name, String phone) =>
+      _he ? 'מחובר: $name · $phone' : 'Signed in: $name · $phone';
+  String get orderConfirmed => _he ? 'ההזמנה נשלחה וממתינה לאישור!' : 'Order sent — pending confirmation!';
+  String get orderSuccessTitle => _he ? 'ההזמנה הושלמה בהצלחה!' : 'Order completed successfully!';
+  String get orderSuccessBannerSub => _he
+      ? 'תודה רבה! נעדכן אותך ברגע שהחנות תאשר.'
+      : 'Thank you! We will update you once the store confirms.';
   String get paymentProcessing => _he ? 'פותח תשלום…' : 'Opening payment…';
   String get paymentCanceled => _he ? 'התשלום בוטל — ההזמנה לא נשמרה' : 'Payment canceled — order not saved';
   String get paymentFailed => _he ? 'התשלום נכשל' : 'Payment failed';

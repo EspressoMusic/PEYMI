@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/app_locale.dart';
 import '../core/app_theme_mode.dart';
 import '../core/legal_config.dart';
 import '../core/legal_versions.dart';
+import 'bakery_celebration.dart';
 
 enum LegalDocumentKind { privacy, terms }
 
@@ -35,9 +39,11 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   Future<void> _load() async {
+    final hebrew = AppLocale.instance.isHebrew;
     final path = switch (widget.kind) {
       LegalDocumentKind.privacy => 'assets/legal/privacy_policy_en.txt',
-      LegalDocumentKind.terms => 'assets/legal/terms_of_use_en.txt',
+      LegalDocumentKind.terms =>
+          hebrew ? 'assets/legal/terms_of_use_he.txt' : 'assets/legal/terms_of_use_en.txt',
     };
     final text = await rootBundle.loadString(path);
     if (!mounted) return;
@@ -64,9 +70,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
     };
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open web page')),
-      );
+      unawaited(showBakeryNoticeBanner(context, title: 'Could not open web page', isError: true));
     }
   }
 

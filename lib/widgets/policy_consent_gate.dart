@@ -29,8 +29,9 @@ class PolicyConsentGate extends StatelessWidget {
         final pending = store.isLoaded && !store.hasAccepted(audience);
 
         return Stack(
+          fit: StackFit.expand,
           children: [
-            child,
+            Positioned.fill(child: child),
             if (pending)
               Positioned.fill(
                 child: PopScope(

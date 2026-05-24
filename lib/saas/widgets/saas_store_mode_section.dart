@@ -6,6 +6,12 @@ import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import 'store_mode_selector.dart';
 
+/// Local customer panel preference wins; default is products.
+String _resolvedStoreMode(String localMode, String serverMode) {
+  if (localMode == 'appointments') return 'appointments';
+  return 'products';
+}
+
 /// Store mode control for manager panel — no separate sign-in required.
 class SaasStoreModeSection extends StatefulWidget {
   const SaasStoreModeSection({super.key, this.onBusinessChanged, this.squareTiles = false});
@@ -45,11 +51,26 @@ class _SaasStoreModeSectionState extends State<SaasStoreModeSection> {
         );
       }
       if (biz != null) {
+        var business = biz;
+        final localMode = ManagerStore.instance.customerPanelMode;
+        var linkMode = _resolvedStoreMode(localMode, business.storeMode);
+        if (SaasRepository.instance.currentUser != null && linkMode != business.storeMode) {
+          try {
+            await SaasRepository.instance.setBusinessStoreMode(
+              businessId: business.id,
+              storeMode: linkMode,
+            );
+            final fresh = await SaasRepository.instance.fetchBusinessBySlug(business.slug);
+            if (fresh != null) business = fresh;
+          } catch (_) {}
+        }
         await ManagerStore.instance.linkOnlineBusiness(
-          id: biz.id,
-          slug: biz.slug,
-          storeMode: biz.storeMode,
+          id: business.id,
+          slug: business.slug,
+          storeMode: linkMode,
+          contactEmail: business.contactEmail,
         );
+        biz = business;
       }
       if (!mounted) return;
       setState(() {

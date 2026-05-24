@@ -20,7 +20,11 @@ $allowedKeys = @(
   "LEGAL_ACCESSIBILITY_EMAIL",
   "LEGAL_OPERATOR_EMAIL",
   "LEGAL_ACCESSIBILITY_STATEMENT_URL",
-  "DEMO_STORE_SLUG"
+  "DEMO_STORE_SLUG",
+  "FIREBASE_PROJECT_ID",
+  "FIREBASE_ANDROID_API_KEY",
+  "FIREBASE_ANDROID_APP_ID",
+  "FIREBASE_MESSAGING_SENDER_ID"
 )
 
 if (-not (Test-Path $envFile)) {
@@ -48,8 +52,26 @@ if (-not $values.ContainsKey('SUPABASE_URL') -or -not $values.ContainsKey('SUPAB
   exit 0
 }
 
-$lines = foreach ($key in $allowedKeys) {
-  if ($values.ContainsKey($key)) { "$key=$($values[$key])" }
+$lines = @(
+  foreach ($key in $allowedKeys) {
+    if ($values.ContainsKey($key)) { "$key=$($values[$key])" }
+  }
+)
+# UTF-8 without BOM — BOM breaks Flutter --dart-define-from-file on the first key.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllLines($outFile, $lines, $utf8NoBom)
+
+$embeddedPath = Join-Path $ProjectRoot "lib\core\supabase\supabase_embedded.dart"
+$urlEsc = ($values['SUPABASE_URL'] -replace '\\', '\\\\' -replace "'", "\'")
+$anonEsc = ($values['SUPABASE_ANON_KEY'] -replace '\\', '\\\\' -replace "'", "\'")
+$embedded = @"
+// Generated from .env by tools/sync_dart_defines.ps1 — do not edit manually.
+abstract final class SupabaseEmbedded {
+  static const url = '$urlEsc';
+  static const anonKey = '$anonEsc';
 }
-$lines | Set-Content $outFile -Encoding utf8
+"@
+[System.IO.File]::WriteAllText($embeddedPath, $embedded, $utf8NoBom)
+Write-Host "Wrote Supabase embed: $embeddedPath"
+
 Write-Output $outFile

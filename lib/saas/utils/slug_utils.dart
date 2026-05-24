@@ -7,3 +7,15 @@ String normalizeSlug(String input) {
   s = s.replaceAll(RegExp(r'^-|-$'), '');
   return s;
 }
+
+/// Slugs that must not be used as public store paths.
+const storeReservedSlugs = <String>{
+  'super-admin',
+  'settings',
+  'orders',
+  'deals',
+  'catalog',
+  'www',
+};
+
+bool slugIsReserved(String slug) => storeReservedSlugs.contains(normalizeSlug(slug));

@@ -4,22 +4,42 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'catalog_data.dart';
+import 'demo_store.dart';
+import 'manager_store.dart';
+import 'safe_change_notifier.dart';
 
-/// Runtime catalog: built-in products/drinks + manager-added items (persisted).
-class CatalogStore extends ChangeNotifier {
+/// Runtime catalog: manager-added items (persisted). Built-in samples only for demo store slug.
+class CatalogStore extends ChangeNotifier with SafeChangeNotifier {
   CatalogStore._();
 
   static final CatalogStore instance = CatalogStore._();
   static const _productsKey = 'catalog_custom_products_v1';
   static const _drinksKey = 'catalog_custom_drinks_v1';
+  static const _setupPromptKey = 'catalog_setup_prompt_shown_v1';
 
-  List<Map<String, String>> _products = [];
-  List<Map<String, String>> _drinks = [];
+  List<Map<String, String>> _customProducts = [];
+  List<Map<String, String>> _customDrinks = [];
 
-  List<Map<String, String>> get products => List.unmodifiable(_products);
-  List<Map<String, String>> get drinks => List.unmodifiable(_drinks);
+  List<Map<String, String>> get products => List.unmodifiable(_visible(_customProducts, CatalogData.products));
 
-  List<Map<String, String>> get allItems => [..._products, ..._drinks];
+  List<Map<String, String>> get drinks => List.unmodifiable(_visible(_customDrinks, CatalogData.drinks));
+
+  List<Map<String, String>> get allItems => [...products, ...drinks];
+
+  bool get isCatalogEmpty => products.isEmpty && drinks.isEmpty;
+
+  static var _managerListenerAttached = false;
+
+  bool get _showBuiltinSamples => DemoStore.isDemoSlug(ManagerStore.instance.linkedBusinessSlug);
+
+  /// True when the manager catalog has nothing to show (no demo samples and no custom items).
+  bool get shouldShowManagerEmptyState => isCatalogEmpty && !_showBuiltinSamples;
+
+  List<Map<String, String>> _visible(
+    List<Map<String, String>> custom,
+    List<Map<String, String>> builtin,
+  ) =>
+      _showBuiltinSamples ? [...builtin, ...custom] : custom;
 
   Map<String, String>? findById(String id) {
     for (final item in allItems) {
@@ -28,11 +48,51 @@ class CatalogStore extends ChangeNotifier {
     return null;
   }
 
+  /// Match an order/prep line label to a catalog item (custom + visible built-ins).
+  Map<String, String>? findByLineName(String lineName) {
+    final trimmed = lineName.trim();
+    if (trimmed.isEmpty) return null;
+    for (final item in allItems) {
+      if (item['nameHe'] == trimmed || item['nameEn'] == trimmed) return item;
+    }
+    return null;
+  }
+
+  ({String image, String emoji})? visualForLineName(String lineName) {
+    final item = findByLineName(lineName);
+    if (item == null) return null;
+    final image = item['image']?.trim() ?? '';
+    if (image.isEmpty) return null;
+    return (image: image, emoji: item['emoji'] ?? '🥖');
+  }
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    _products = [...CatalogData.products, ..._decodeList(prefs.getString(_productsKey))];
-    _drinks = [...CatalogData.drinks, ..._decodeList(prefs.getString(_drinksKey))];
+    _customProducts = _decodeList(prefs.getString(_productsKey));
+    _customDrinks = _decodeList(prefs.getString(_drinksKey));
+    if (!_managerListenerAttached) {
+      _managerListenerAttached = true;
+      ManagerStore.instance.addListener(notifyListeners);
+    }
     notifyListeners();
+  }
+
+  Future<bool> shouldShowSetupPrompt() async {
+    if (!isCatalogEmpty || _showBuiltinSamples) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return !(prefs.getBool(_setupPromptKey) ?? false);
+  }
+
+  Future<void> markSetupPromptShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_setupPromptKey, true);
+  }
+
+  /// Show the setup banner again when entering products mode with an empty catalog.
+  Future<void> armSetupPromptForProductsMode() async {
+    if (!isCatalogEmpty || _showBuiltinSamples) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_setupPromptKey, false);
   }
 
   List<Map<String, String>> _decodeList(String? raw) {
@@ -69,9 +129,8 @@ class CatalogStore extends ChangeNotifier {
       'image': image,
       'emoji': emoji,
     };
-    final customs = _products.where((p) => p['id']!.startsWith('custom_')).toList()..add(item);
-    _products = [...CatalogData.products, ...customs];
-    await _persistCustoms(_productsKey, customs);
+    _customProducts = [..._customProducts, item];
+    await _persistCustoms(_productsKey, _customProducts);
     notifyListeners();
   }
 
@@ -95,9 +154,8 @@ class CatalogStore extends ChangeNotifier {
       'image': image,
       'emoji': emoji,
     };
-    final customs = _drinks.where((d) => d['id']!.startsWith('custom_')).toList()..add(item);
-    _drinks = [...CatalogData.drinks, ...customs];
-    await _persistCustoms(_drinksKey, customs);
+    _customDrinks = [..._customDrinks, item];
+    await _persistCustoms(_drinksKey, _customDrinks);
     notifyListeners();
   }
 
@@ -112,7 +170,7 @@ class CatalogStore extends ChangeNotifier {
     required String emoji,
     required bool isDrink,
   }) async {
-    final list = isDrink ? _drinks : _products;
+    final list = isDrink ? _customDrinks : _customProducts;
     final idx = list.indexWhere((e) => e['id'] == id);
     if (idx < 0 || !id.startsWith('custom_')) return;
     list[idx] = {
@@ -126,13 +184,11 @@ class CatalogStore extends ChangeNotifier {
       'emoji': emoji,
     };
     if (isDrink) {
-      final customs = list.where((d) => d['id']!.startsWith('custom_')).toList();
-      _drinks = [...CatalogData.drinks, ...customs];
-      await _persistCustoms(_drinksKey, customs);
+      _customDrinks = List.from(list);
+      await _persistCustoms(_drinksKey, _customDrinks);
     } else {
-      final customs = list.where((p) => p['id']!.startsWith('custom_')).toList();
-      _products = [...CatalogData.products, ...customs];
-      await _persistCustoms(_productsKey, customs);
+      _customProducts = List.from(list);
+      await _persistCustoms(_productsKey, _customProducts);
     }
     notifyListeners();
   }
@@ -140,13 +196,11 @@ class CatalogStore extends ChangeNotifier {
   Future<void> removeItem(String id, {required bool isDrink}) async {
     if (!id.startsWith('custom_')) return;
     if (isDrink) {
-      final customs = _drinks.where((d) => d['id']!.startsWith('custom_') && d['id'] != id).toList();
-      _drinks = [...CatalogData.drinks, ...customs];
-      await _persistCustoms(_drinksKey, customs);
+      _customDrinks = _customDrinks.where((d) => d['id'] != id).toList();
+      await _persistCustoms(_drinksKey, _customDrinks);
     } else {
-      final customs = _products.where((p) => p['id']!.startsWith('custom_') && p['id'] != id).toList();
-      _products = [...CatalogData.products, ...customs];
-      await _persistCustoms(_productsKey, customs);
+      _customProducts = _customProducts.where((p) => p['id'] != id).toList();
+      await _persistCustoms(_productsKey, _customProducts);
     }
     notifyListeners();
   }

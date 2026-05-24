@@ -1,16 +1,17 @@
-// Copy to config.js OR run: .\tools\generate_bizmi_config.ps1 (reads .env)
+// Copy to config.js or run: .\tools\generate_bizmi_config.ps1
 window.BIZMI_CONFIG = {
+  appName: "Bizmi",
   publicBaseUrl: "https://bizmi.app",
+  basePath: "",
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",
   supabaseAnonKey: "YOUR_SUPABASE_ANON_KEY",
-
-  // App download — set PLAY_STORE_URL / APP_STORE_URL in .env when published
-  playStoreUrl:
-    "https://play.google.com/store/apps/details?id=com.example.bakery_shop_app",
-  appStoreUrl: "https://apps.apple.com/app/id0000000000",
+  testingMode: true,
+  apkDownloadUrl: "",
+  playStoreUrl: "",
+  appStoreUrl: "",
   androidPackage: "com.example.bakery_shop_app",
-
-  // Try app deep link first; if missing, redirect to the right store (Android/iOS)
-  tryOpenAppFirst: true,
+  deepLinkScheme: "bizmi",
+  defaultLang: "he",
+  tryOpenAppFirst: false,
   redirectDelayMs: 1600,
 };

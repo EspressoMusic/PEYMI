@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'core/app_locale.dart';
 import 'core/app_theme_mode.dart';
 import 'core/business_store.dart';
-import 'core/catalog_data.dart';
+import 'core/catalog_store.dart';
+import 'widgets/catalog_item_image.dart';
 AppStrings get _s => AppLocale.instance.s;
 
 class _EmployeePanel extends StatelessWidget {
@@ -57,7 +58,7 @@ class EmployeeHomePage extends StatelessWidget {
         listenable: BusinessStore.instance,
         builder: (context, _) {
           final store = BusinessStore.instance;
-          final orders = store.recentOrders;
+          final orders = store.pendingOrders;
           final prep = store.preparationTotals;
           final prepUnits = store.preparationUnitCount;
           final he = AppLocale.instance.isHebrew;
@@ -117,7 +118,7 @@ class EmployeeHomePage extends StatelessWidget {
               Text(strings.managerRecentOrders, style: BakeryTheme.text(context, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               if (orders.isEmpty)
-                _EmployeePanel(child: Text(strings.managerNoOrdersYet, style: BakeryTheme.subtitleText(context)))
+                _EmployeePanel(child: Text(strings.managerNoPendingOrders, style: BakeryTheme.subtitleText(context)))
               else
                 ...orders.take(20).map(
                   (o) => Padding(
@@ -175,7 +176,9 @@ class _EmployeePrepChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = BakeryTheme.accent(context);
-    final visual = CatalogData.visualForLineName(name);
+    final item = CatalogStore.instance.findByLineName(name);
+    final image = item?['image']?.trim() ?? '';
+    final emoji = item?['emoji'] ?? '🥖';
     return Container(
       width: 108,
       padding: const EdgeInsets.all(10),
@@ -186,19 +189,19 @@ class _EmployeePrepChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          if (visual != null)
+          if (image.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                visual.image,
+              child: CatalogItemImage(
+                path: image,
                 width: 56,
                 height: 56,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Text(visual.emoji, style: const TextStyle(fontSize: 28)),
+                emoji: emoji,
               ),
             )
           else
-            const Text('🥖', style: TextStyle(fontSize: 28)),
+            Text(emoji, style: const TextStyle(fontSize: 28)),
           const SizedBox(height: 8),
           Text(
             name,

@@ -4,10 +4,12 @@ import 'core/app_locale.dart';
 import 'core/app_theme_mode.dart';
 import 'core/business_health.dart';
 import 'core/business_store.dart';
-import 'core/catalog_data.dart';
+import 'core/catalog_store.dart';
+import 'widgets/catalog_item_image.dart';
 import 'core/keyboard_safe.dart';
 import 'core/manager_notifications_store.dart';
 import 'core/manager_store.dart';
+import 'core/platform_legal_notice.dart';
 import 'core/policy_consent_store.dart';
 import 'core/public_store_links.dart';
 import 'core/reviews_store.dart';
@@ -15,9 +17,9 @@ import 'manager_action_pages.dart';
 import 'saas/app_creator_flow.dart';
 import 'saas/saas_flow.dart';
 import 'widgets/app_creator_six_tap.dart';
+import 'widgets/bakery_celebration.dart';
 import 'widgets/bakery_bottom_bar.dart';
 import 'widgets/business_health_ring.dart';
-import 'widgets/accessibility_panel_sheet.dart';
 import 'widgets/policy_consent_gate.dart';
 
 AppStrings get _s => AppLocale.instance.s;
@@ -95,19 +97,57 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
                   else
                     ...items.map(
                       (n) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          tileColor: n.read
-                              ? BakeryTheme.cardSurface(ctx).withValues(alpha: 0.5)
-                              : BakeryTheme.accent(ctx).withValues(alpha: 0.12),
-                          leading: Icon(_notificationIcon(n.kind), color: BakeryTheme.accent(ctx)),
-                          title: Text(
-                            n.title(he),
-                            style: BakeryTheme.text(ctx, fontSize: 15, fontWeight: FontWeight.w700),
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => ManagerNotificationsStore.instance.markRead(n.id),
+                            borderRadius: BorderRadius.circular(22),
+                            child: _ManagerPanel(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    _notificationIcon(n.kind),
+                                    color: BakeryTheme.accent(ctx),
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          n.title(he),
+                                          style: BakeryTheme.text(
+                                            ctx,
+                                            fontSize: 15,
+                                            fontWeight: n.read ? FontWeight.w700 : FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          n.body(he),
+                                          style: BakeryTheme.subtitleText(ctx, fontSize: 13, height: 1.35),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!n.read)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      margin: const EdgeInsets.only(top: 6),
+                                      decoration: BoxDecoration(
+                                        color: BakeryTheme.accent(ctx),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
-                          subtitle: Text(n.body(he), style: BakeryTheme.subtitleText(ctx, fontSize: 13)),
-                          onTap: () => ManagerNotificationsStore.instance.markRead(n.id),
                         ),
                       ),
                     ),
@@ -244,7 +284,7 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
     return hebrew ? '$day/$month · $hour:$min' : '$month/$day · $hour:$min';
   }
 
-  void _openOrdersDetailSheet(BuildContext context, List<BusinessOrderRecord> orders) {
+  void _openOrdersDetailSheet(BuildContext context) {
     final strings = _s;
     final he = AppLocale.instance.isHebrew;
     showModalBottomSheet<void>(
@@ -253,56 +293,102 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
       showDragHandle: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (ctx) {
-        return bakeryModalSheetFrame(
-          ctx,
-          ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-            children: [
-              if (orders.isEmpty)
-                Text(strings.managerNoOrdersYet, style: BakeryTheme.subtitleText(ctx))
-              else
-                ...orders.map(
-                  (o) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ManagerPanel(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+        return ListenableBuilder(
+          listenable: BusinessStore.instance,
+          builder: (ctx, _) {
+            final store = BusinessStore.instance;
+            final pending = store.pendingOrders;
+            final approvedCount = store.approvedOrders.length;
+            return bakeryModalSheetFrame(
+              ctx,
+              ListView(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  28 + MediaQuery.viewPaddingOf(ctx).bottom,
+                ),
+                children: [
+                  if (pending.isEmpty)
+                    Text(strings.managerNoPendingOrders, style: BakeryTheme.subtitleText(ctx))
+                  else
+                    ...pending.map(
+                      (o) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _ManagerPanel(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(o.id, style: BakeryTheme.text(ctx, fontSize: 16, fontWeight: FontWeight.w800)),
-                              const Spacer(),
-                              Text(o.total, style: BakeryTheme.text(ctx, fontWeight: FontWeight.w800)),
-                            ],
-                          ),
-                          Text(
-                            _formatOrderTime(o.createdAtMs, he),
-                            style: BakeryTheme.subtitleText(ctx, fontSize: 12),
-                          ),
-                          const SizedBox(height: 8),
-                          ...o.lines.map(
-                            (line) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
+                              Row(
                                 children: [
-                                  _PrepLineThumb(name: line.name, size: 36),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: Text('${line.name} ×${line.quantity}')),
+                                  Text(o.id, style: BakeryTheme.text(ctx, fontSize: 16, fontWeight: FontWeight.w800)),
+                                  const Spacer(),
+                                  Text(o.total, style: BakeryTheme.text(ctx, fontWeight: FontWeight.w800)),
                                 ],
                               ),
-                            ),
+                              Text(
+                                _formatOrderTime(o.createdAtMs, he),
+                                style: BakeryTheme.subtitleText(ctx, fontSize: 12),
+                              ),
+                              const SizedBox(height: 8),
+                              ...o.lines.map(
+                                (line) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    children: [
+                                      _PrepLineThumb(name: line.name, size: 36),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text('${line.name} ×${line.quantity}')),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (o.lines.isEmpty)
+                                Text(o.summary, style: BakeryTheme.subtitleText(ctx, fontSize: 13)),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () async {
+                                    final ok = await store.approveOrder(o.id);
+                                    if (!ctx.mounted || !ok) return;
+                                    await showBakeryUpdateBanner(
+                                      ctx,
+                                      title: strings.managerOrderApproved,
+                                      playSound: false,
+                                    );
+                                  },
+                                  icon: const Icon(Icons.check_circle_outline_rounded),
+                                  label: Text(strings.managerApproveOrder),
+                                ),
+                              ),
+                            ],
                           ),
-                          if (o.lines.isEmpty)
-                            Text(o.summary, style: BakeryTheme.subtitleText(ctx, fontSize: 13)),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-            ],
-          ),
-          title: strings.managerPrepDetails,
+                  if (approvedCount > 0) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final removed = await store.clearApprovedOrders();
+                        if (!ctx.mounted || removed <= 0) return;
+                        await showBakeryUpdateBanner(
+                          ctx,
+                          title: strings.managerApprovedOrdersCleared,
+                          playSound: false,
+                        );
+                      },
+                      icon: const Icon(Icons.cleaning_services_outlined),
+                      label: Text(strings.managerClearApprovedOrders),
+                    ),
+                  ],
+                ],
+              ),
+              title: strings.managerPrepDetails,
+            );
+          },
         );
       },
     );
@@ -327,7 +413,8 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
     final badges = <HealthRingBadge>[];
 
     for (final f in snapshot.actionableFactors) {
-      final action = f.action!;
+      final action = f.action;
+      if (action == null) continue;
       final key = switch (action.kind) {
         HealthIssueKind.poorReview => 'review_${action.reviewIndex}',
         HealthIssueKind.customerInquiries => 'inquiries',
@@ -391,8 +478,10 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                           : null,
                       onTap: f.isActionable
                           ? () {
+                              final action = f.action;
+                              if (action == null) return;
                               Navigator.pop(ctx);
-                              _handleHealthAction(context, f.action!);
+                              _handleHealthAction(context, action);
                             }
                           : null,
                     ),
@@ -413,21 +502,6 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
       children: [
         const SizedBox(height: 8),
-        ListenableBuilder(
-          listenable: ManagerStore.instance,
-          builder: (context, _) {
-            final shareSlug = ManagerStore.instance.linkedBusinessSlug?.trim();
-            final hasShareLink = shareSlug != null && shareSlug.isNotEmpty;
-            final shareUrl = hasShareLink ? PublicStoreLinks.publicUrlForSlug(shareSlug) : null;
-            return _ManagerShareStoreButton(
-              strings: strings,
-              hasLink: hasShareLink,
-              linkPreview: shareUrl,
-              onTap: () => openManagerShareFlow(context),
-            );
-          },
-        ),
-        const SizedBox(height: 20),
         ListenableBuilder(
           listenable: Listenable.merge([BusinessStore.instance, ReviewsStore.instance]),
           builder: (context, _) {
@@ -467,14 +541,30 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
             );
           },
         ),
+        const SizedBox(height: 16),
+        _ManagerLegalProtectionButton(strings: strings),
+        const SizedBox(height: 16),
+        ListenableBuilder(
+          listenable: ManagerStore.instance,
+          builder: (context, _) {
+            final shareSlug = ManagerStore.instance.linkedBusinessSlug?.trim();
+            final hasShareLink = shareSlug != null && shareSlug.isNotEmpty;
+            final shareUrl = hasShareLink ? PublicStoreLinks.publicUrlForSlug(shareSlug) : null;
+            return _ManagerShareStoreButton(
+              strings: strings,
+              hasLink: hasShareLink,
+              linkPreview: shareUrl,
+              onTap: () => openManagerShareFlow(context),
+            );
+          },
+        ),
         const SizedBox(height: 20),
         ListenableBuilder(
           listenable: BusinessStore.instance,
           builder: (context, _) {
             final store = BusinessStore.instance;
-            final orders = store.recentOrders;
+            final pending = store.pendingOrders;
             final prep = store.preparationTotals;
-            final prepUnits = store.preparationUnitCount;
             return _ManagerPanel(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -490,26 +580,10 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                           style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
                         ),
                       ),
-                      if (prepUnits > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: BakeryTheme.accent(context).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$prepUnits',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: BakeryTheme.accent(context),
-                            ),
-                          ),
-                        ),
-                      if (orders.isNotEmpty)
+                      if (pending.isNotEmpty)
                         IconButton(
                           tooltip: strings.managerPrepDetails,
-                          onPressed: () => _openOrdersDetailSheet(context, orders),
+                          onPressed: () => _openOrdersDetailSheet(context),
                           icon: Icon(Icons.info_outline_rounded, color: BakeryTheme.accent(context)),
                         ),
                     ],
@@ -526,12 +600,83 @@ class _ManagerDashboardTabState extends State<_ManagerDashboardTab> {
                       runSpacing: 10,
                       children: prep.entries.map((e) => _PrepQuantityChip(name: e.key, quantity: e.value)).toList(),
                     ),
+                  if (pending.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          final count = await store.approveAllPendingOrders();
+                          if (!context.mounted || count <= 0) return;
+                          await showBakeryUpdateBanner(
+                            context,
+                            title: strings.managerAllOrdersApproved,
+                            playSound: false,
+                          );
+                        },
+                        icon: const Icon(Icons.task_alt_rounded),
+                        label: Text(strings.managerApprovePrepDone),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
           },
         ),
       ],
+    );
+  }
+}
+
+class _ManagerLegalProtectionButton extends StatelessWidget {
+  const _ManagerLegalProtectionButton({required this.strings});
+
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final hebrew = AppLocale.instance.isHebrew;
+    final accent = BakeryTheme.accent(context);
+
+    return Semantics(
+      button: true,
+      label: strings.managerActionLegalProtection,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => openManagerPage(context, const ManagerLegalProtectionPage()),
+          borderRadius: BorderRadius.circular(22),
+          child: _ManagerPanel(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.gavel_outlined, color: accent, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        strings.managerActionLegalProtection,
+                        style: BakeryTheme.text(context, fontSize: 17, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        PlatformLegalNotice.managerPageSubtitle(hebrew),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: BakeryTheme.subtitleText(context, fontSize: 13, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_left_rounded, color: BakeryTheme.muted(context), size: 26),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -605,7 +750,9 @@ class _PrepLineThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visual = CatalogData.visualForLineName(name);
+    final item = CatalogStore.instance.findByLineName(name);
+    final image = item?['image']?.trim() ?? '';
+    final emoji = item?['emoji'] ?? '🥖';
     final chipFill = BakerySquarePalette.squareFill(context);
     return Container(
       width: size,
@@ -617,13 +764,15 @@ class _PrepLineThumb extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: visual == null
-            ? Center(child: Text('🥖', style: TextStyle(fontSize: size * 0.45)))
-            : Image.asset(
-                visual.image,
+        child: image.isNotEmpty
+            ? CatalogItemImage(
+                path: image,
+                width: size,
+                height: size,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(child: Text(visual.emoji, style: TextStyle(fontSize: size * 0.45))),
-              ),
+                emoji: emoji,
+              )
+            : Center(child: Text(emoji, style: TextStyle(fontSize: size * 0.45))),
       ),
     );
   }
@@ -680,7 +829,11 @@ class _ManagerActionsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strings = _s;
+  return ListenableBuilder(
+      listenable: ManagerStore.instance,
+      builder: (context, _) {
+        final strings = _s;
+        final appointments = ManagerStore.instance.isAppointmentCustomerMode;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -699,22 +852,15 @@ class _ManagerActionsTab extends StatelessWidget {
           ),
           ManagerActionSquare(
             title: strings.managerActionNewDeal,
-            subtitle: strings.managerActionNewDealSub,
+            subtitle: appointments ? strings.managerActionNewDealSubAppointment : strings.managerActionNewDealSub,
             icon: Icons.local_offer_outlined,
             colorIndex: 2,
             onTap: () => openManagerPage(context, const ManagerNewDealPage()),
           ),
           ManagerActionSquare(
-            title: strings.managerActionSubscriptions,
-            subtitle: strings.managerActionSubscriptionsSub,
-            icon: Icons.workspace_premium_outlined,
-            colorIndex: 1,
-            onTap: () => openManagerPage(context, const ManagerSubscriptionsPage()),
-          ),
-          ManagerActionSquare(
             title: strings.managerActionStore,
-            subtitle: strings.managerActionStoreSub,
-            icon: Icons.storefront_outlined,
+            subtitle: appointments ? strings.managerActionStoreSubAppointment : strings.managerActionStoreSub,
+            icon: appointments ? Icons.medical_services_outlined : Icons.storefront_outlined,
             colorIndex: 3,
             onTap: () => openManagerPage(context, const ManagerStorePage()),
           ),
@@ -726,35 +872,30 @@ class _ManagerActionsTab extends StatelessWidget {
             onTap: () => openManagerPage(context, const ManagerStatsPage()),
           ),
           ManagerActionSquare(
-            title: strings.managerActionOrderLimits,
-            subtitle: strings.managerActionOrderLimitsSub,
-            icon: Icons.block_flipped,
+            title: appointments ? strings.managerActionAppointmentSchedule : strings.managerActionOrderLimits,
+            subtitle: appointments ? strings.managerActionAppointmentScheduleSub : strings.managerActionOrderLimitsSub,
+            icon: appointments ? Icons.calendar_month_outlined : Icons.block_flipped,
             colorIndex: 6,
             onTap: () => openManagerPage(context, const ManagerOrderRestrictionsPage()),
           ),
           ManagerActionSquare(
             title: strings.managerActionFaq,
             subtitle: strings.managerActionFaqSub,
-            icon: Icons.quiz_outlined,
+            icon: Icons.help_outline_rounded,
             colorIndex: 7,
             onTap: () => openManagerPage(context, const ManagerFaqPage()),
           ),
           ManagerActionSquare(
-            title: strings.managerActionStoreTerms,
-            subtitle: strings.managerActionStoreTermsSub,
+            title: strings.managerActionLegalProtection,
+            subtitle: strings.managerActionLegalProtectionSub,
             icon: Icons.gavel_outlined,
-            colorIndex: 8,
-            onTap: () => openManagerPage(context, const ManagerStoreTermsPage()),
-          ),
-          ManagerActionSquare(
-            title: strings.managerActionAccessibility,
-            subtitle: strings.managerActionAccessibilitySub,
-            icon: Icons.accessible_forward_rounded,
-            colorIndex: 5,
-            onTap: () => showAccessibilityPanel(context),
+            colorIndex: 1,
+            onTap: () => openManagerPage(context, const ManagerLegalProtectionPage()),
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

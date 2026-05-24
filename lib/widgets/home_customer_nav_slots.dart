@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/manager_store.dart';
 import 'customer_appointment_history_tab.dart';
-import 'customer_business_services_tab.dart';
 
-/// Swaps deals ↔ services and orders ↔ appointment history without widget-type crashes.
+/// Swaps orders ↔ appointment history without widget-type crashes.
 class HomeDealsSlot extends StatefulWidget {
   const HomeDealsSlot({super.key, required this.productDealsPage});
 
@@ -39,24 +38,11 @@ class _HomeDealsSlotState extends State<HomeDealsSlot> {
 
   @override
   Widget build(BuildContext context) {
-    final appointment = ManagerStore.instance.isAppointmentCustomerMode;
-    final slug = ManagerStore.instance.linkedBusinessSlug ?? '';
-
-    return IndexedStack(
-      index: appointment ? 1 : 0,
-      sizing: StackFit.expand,
-      children: [
-        KeyedSubtree(
-          key: const ValueKey('home_deals_products'),
-          child: widget.productDealsPage,
-        ),
-        KeyedSubtree(
-          key: const ValueKey('home_deals_services'),
-          child: slug.isNotEmpty
-              ? CustomerBusinessServicesTab(businessSlug: slug)
-              : const SizedBox.shrink(),
-        ),
-      ],
+    return KeyedSubtree(
+      key: ValueKey(
+        ManagerStore.instance.isAppointmentCustomerMode ? 'home_deals_appointment' : 'home_deals_products',
+      ),
+      child: widget.productDealsPage,
     );
   }
 }

@@ -4,11 +4,13 @@ import { getServiceClient, getUserClient } from "../_shared/supabase.ts";
 type CreateBusinessBody = {
   business_name: string;
   slug: string;
+  manager_pin: string;
   description?: string;
   logo_url?: string;
   phone?: string;
   business_type?: string;
   address?: string;
+  contact_email?: string;
   opening_hours?: Record<string, unknown>;
 };
 
@@ -32,6 +34,9 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as CreateBusinessBody;
     if (!body.business_name?.trim() || !body.slug?.trim()) {
       return json({ error: "business_name and slug are required" }, 400);
+    }
+    if (!body.manager_pin?.trim() || body.manager_pin.trim().length < 4) {
+      return json({ error: "manager_pin must be at least 4 characters" }, 400);
     }
 
     const service = getServiceClient();
@@ -67,17 +72,26 @@ Deno.serve(async (req) => {
       }, 409);
     }
 
+    const { data: pinHash, error: pinHashError } = await service.rpc("hash_manager_pin", {
+      p_pin: body.manager_pin.trim(),
+    });
+    if (pinHashError || !pinHash) {
+      return json({ error: "Could not secure manager password" }, 500);
+    }
+
     const { data: business, error: insertError } = await service
       .from("businesses")
       .insert({
         owner_id: userId,
         business_name: body.business_name.trim(),
         slug: normalizedSlug,
+        manager_pin_hash: pinHash,
         description: body.description?.trim() || null,
         logo_url: body.logo_url || null,
         phone: body.phone?.trim() || null,
         business_type: body.business_type?.trim() || null,
         address: body.address?.trim() || null,
+        contact_email: body.contact_email?.trim() || userData.user.email?.trim() || null,
         opening_hours: body.opening_hours ?? null,
         subscription_status: "trial",
         is_active: true,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_locale.dart';
 import '../../core/app_theme_mode.dart';
+import '../../widgets/customer_name_field.dart';
 import '../data/saas_repository.dart';
 import '../models/saas_models.dart';
 import '../widgets/customer_payment_instructions.dart';
@@ -39,18 +41,19 @@ class _PublicProductStoreBodyState extends State<PublicProductStoreBody> {
   Future<void> _placeOrder() async {
     final b = widget.business;
     if (!b.acceptsCustomers) return;
+    final strings = AppLocale.instance.s;
     final nameCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Place order'),
-        content: TextField(
+        title: Text(strings.confirmOrder),
+        content: CustomerNameField(
           controller: nameCtrl,
-          decoration: const InputDecoration(labelText: 'Your name'),
+          label: strings.yourName,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Submit')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(strings.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(strings.confirmOrder)),
         ],
       ),
     );
@@ -74,6 +77,7 @@ class _PublicProductStoreBodyState extends State<PublicProductStoreBody> {
 
   Future<void> _showMessageSheet() async {
     final b = widget.business;
+    final strings = AppLocale.instance.s;
     final ctrl = TextEditingController();
     final nameCtrl = TextEditingController();
     await showModalBottomSheet<void>(
@@ -85,8 +89,8 @@ class _PublicProductStoreBodyState extends State<PublicProductStoreBody> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-              TextField(controller: ctrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Message')),
+              CustomerNameField(controller: nameCtrl, label: strings.yourName),
+              TextField(controller: ctrl, maxLines: 3, decoration: InputDecoration(labelText: strings.yourMessage)),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () async {
@@ -97,7 +101,7 @@ class _PublicProductStoreBodyState extends State<PublicProductStoreBody> {
                   );
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
-                child: const Text('Send'),
+                child: Text(strings.sendMessage),
               ),
             ],
           ),

@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../core/app_locale.dart';
 import '../../core/app_theme_mode.dart';
+import '../../core/customer_profile_store.dart';
 import '../../core/customer_appointments_store.dart';
+import '../../widgets/bakery_celebration.dart';
+import '../../widgets/customer_name_field.dart';
 import '../data/saas_repository.dart';
 import '../models/appointment_models.dart';
 import '../models/saas_models.dart';
@@ -32,6 +38,14 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
   final _notesCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   var _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = CustomerProfileStore.instance;
+    if (profile.displayName.isNotEmpty) _nameCtrl.text = profile.displayName;
+    if (profile.phone.isNotEmpty) _phoneCtrl.text = profile.phone;
+  }
 
   @override
   void dispose() {
@@ -81,9 +95,11 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      unawaited(showBakeryNoticeBanner(
+        context,
+        title: AppointmentStrings.friendlyError(e),
+        isError: true,
+      ));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -126,15 +142,11 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
             key: _formKey,
             child: Column(
               children: [
-                TextFormField(
+                CustomerNameField(
                   controller: _nameCtrl,
+                  label: AppointmentStrings.yourName.replaceAll(' *', ''),
                   textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: AppointmentStrings.yourName,
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? AppointmentStrings.requiredField : null,
+                  validator: (v) => CustomerNameField.validate(v, AppLocale.instance.s),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
