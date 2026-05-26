@@ -5,8 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.example.bakery_shop_app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_RELEASE_SHA256_FINGERPRINT",
-        "REPLACE_WITH_DEBUG_SHA256_FINGERPRINT_OPTIONAL"
+        "20:B1:A8:99:1A:B0:F4:7A:BD:2E:94:EA:DA:B6:62:A9:41:6F:07:D7:A1:24:A2:E7:3B:C4:19:12:11:08:5D:C1"
       ]
     }
   }
